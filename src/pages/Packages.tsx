@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Edit, Trash2, Zap } from "lucide-react";
+import { Plus, Edit, Trash2, Zap, Package as PackageIcon } from "lucide-react";
 
 interface Package {
   id: string;
@@ -18,16 +18,8 @@ interface Package {
   active: boolean;
 }
 
-const initialPackages: Package[] = [
-  { id: "1", name: "Quick Browse", price: 15, duration: "2 Hours", speedLimit: "5 Mbps", active: true },
-  { id: "2", name: "Half Day", price: 30, duration: "6 Hours", speedLimit: "10 Mbps", active: true },
-  { id: "3", name: "Full Day", price: 60, duration: "24 Hours", speedLimit: "20 Mbps", active: true },
-  { id: "4", name: "Weekly Pass", price: 350, duration: "7 Days", speedLimit: "20 Mbps", dataLimit: "10 GB", active: true },
-  { id: "5", name: "Monthly", price: 1200, duration: "30 Days", speedLimit: "50 Mbps", dataLimit: "50 GB", active: false },
-];
-
 export default function Packages() {
-  const [packages, setPackages] = useState(initialPackages);
+  const [packages, setPackages] = useState<Package[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const toggleActive = (id: string) => {
@@ -67,31 +59,39 @@ export default function Packages() {
         </Dialog>
       </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {packages.map((pkg) => (
-          <div key={pkg.id} className={`glass-card-glow rounded-xl p-5 transition-all ${!pkg.active && "opacity-50"}`}>
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-primary" />
-                <h3 className="font-display font-semibold text-sm">{pkg.name}</h3>
+      {packages.length === 0 ? (
+        <div className="glass-card rounded-xl p-12 text-center">
+          <PackageIcon className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-sm text-muted-foreground">No packages yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Create your first internet access package to get started</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {packages.map((pkg) => (
+            <div key={pkg.id} className={`glass-card-glow rounded-xl p-5 transition-all ${!pkg.active && "opacity-50"}`}>
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-primary" />
+                  <h3 className="font-display font-semibold text-sm">{pkg.name}</h3>
+                </div>
+                <Switch checked={pkg.active} onCheckedChange={() => toggleActive(pkg.id)} />
               </div>
-              <Switch checked={pkg.active} onCheckedChange={() => toggleActive(pkg.id)} />
+              <p className="text-3xl font-display font-bold gradient-text mb-1">KSH {pkg.price}</p>
+              <p className="text-sm text-muted-foreground mb-4">{pkg.duration}</p>
+              <div className="flex gap-2 text-xs text-muted-foreground mb-4">
+                {pkg.speedLimit && <span className="px-2 py-1 rounded-md bg-muted">{pkg.speedLimit}</span>}
+                {pkg.dataLimit && <span className="px-2 py-1 rounded-md bg-muted">{pkg.dataLimit}</span>}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1"><Edit className="w-3 h-3 mr-1" /> Edit</Button>
+                <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => deletePackage(pkg.id)}>
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
             </div>
-            <p className="text-3xl font-display font-bold gradient-text mb-1">KSH {pkg.price}</p>
-            <p className="text-sm text-muted-foreground mb-4">{pkg.duration}</p>
-            <div className="flex gap-2 text-xs text-muted-foreground mb-4">
-              {pkg.speedLimit && <span className="px-2 py-1 rounded-md bg-muted">{pkg.speedLimit}</span>}
-              {pkg.dataLimit && <span className="px-2 py-1 rounded-md bg-muted">{pkg.dataLimit}</span>}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1"><Edit className="w-3 h-3 mr-1" /> Edit</Button>
-              <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => deletePackage(pkg.id)}>
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </AdminLayout>
   );
 }

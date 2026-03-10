@@ -19,14 +19,8 @@ interface RouterDevice {
   paymentDest: string;
 }
 
-const mockRouters: RouterDevice[] = [
-  { id: "1", name: "Router 1", location: "Main Cafe", ip: "192.168.88.1", model: "RB951", status: "Online", activeUsers: 45, paymentDest: "M-Pesa Till" },
-  { id: "2", name: "Router 2", location: "Hostel Block A", ip: "192.168.88.2", model: "hAP ac²", status: "Online", activeUsers: 32, paymentDest: "M-Pesa Paybill" },
-  { id: "3", name: "Router 3", location: "Library", ip: "192.168.88.3", model: "RB951", status: "Offline", activeUsers: 0, paymentDest: "Paystack" },
-];
-
 export default function Routers() {
-  const [routers] = useState(mockRouters);
+  const [routers, setRouters] = useState<RouterDevice[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
@@ -67,38 +61,46 @@ export default function Routers() {
         </Dialog>
       </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {routers.map((r) => (
-          <div key={r.id} className="glass-card-glow rounded-xl p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  r.status === "Online" ? "bg-success/15" : "bg-muted"
-                }`}>
-                  {r.status === "Online" ? <Wifi className="w-5 h-5 text-success" /> : <WifiOff className="w-5 h-5 text-muted-foreground" />}
+      {routers.length === 0 ? (
+        <div className="glass-card rounded-xl p-12 text-center">
+          <RouterIcon className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-sm text-muted-foreground">No routers yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Add your first MikroTik router to get started</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {routers.map((r) => (
+            <div key={r.id} className="glass-card-glow rounded-xl p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    r.status === "Online" ? "bg-success/15" : "bg-muted"
+                  }`}>
+                    {r.status === "Online" ? <Wifi className="w-5 h-5 text-success" /> : <WifiOff className="w-5 h-5 text-muted-foreground" />}
+                  </div>
+                  <div>
+                    <h3 className="font-display font-semibold text-sm">{r.name}</h3>
+                    <p className="text-xs text-muted-foreground">{r.location}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-display font-semibold text-sm">{r.name}</h3>
-                  <p className="text-xs text-muted-foreground">{r.location}</p>
-                </div>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  r.status === "Online" ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
+                }`}>{r.status}</span>
               </div>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                r.status === "Online" ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
-              }`}>{r.status}</span>
+              <div className="space-y-2 text-sm mb-4">
+                <div className="flex justify-between"><span className="text-muted-foreground">IP</span><span className="font-mono text-xs">{r.ip}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Model</span><span>{r.model}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Active Users</span><span className="font-display font-bold text-primary">{r.activeUsers}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Payment</span><span>{r.paymentDest}</span></div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1"><Settings className="w-3 h-3 mr-1" /> Configure</Button>
+                <Button variant="outline" size="sm" className="flex-1"><RouterIcon className="w-3 h-3 mr-1" /> Auto Setup</Button>
+              </div>
             </div>
-            <div className="space-y-2 text-sm mb-4">
-              <div className="flex justify-between"><span className="text-muted-foreground">IP</span><span className="font-mono text-xs">{r.ip}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Model</span><span>{r.model}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Active Users</span><span className="font-display font-bold text-primary">{r.activeUsers}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Payment</span><span>{r.paymentDest}</span></div>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1"><Settings className="w-3 h-3 mr-1" /> Configure</Button>
-              <Button variant="outline" size="sm" className="flex-1"><RouterIcon className="w-3 h-3 mr-1" /> Auto Setup</Button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </AdminLayout>
   );
 }

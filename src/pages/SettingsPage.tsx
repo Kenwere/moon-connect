@@ -20,10 +20,34 @@ export default function SettingsPage() {
             <h3 className="font-display font-semibold">Business Settings</h3>
           </div>
           <div className="space-y-4">
-            <div><Label>Business Name</Label><Input defaultValue="HotSpot Pro Cafe" className="mt-1.5" /></div>
+            <div><Label>Business Name</Label><Input placeholder="Your Business Name" className="mt-1.5" /></div>
             <div><Label>Business Logo URL</Label><Input placeholder="https://..." className="mt-1.5" /></div>
-            <div><Label>Support Phone</Label><Input defaultValue="+254712345678" className="mt-1.5" /></div>
-            <div><Label>Welcome Message</Label><Input defaultValue="Welcome to fast, reliable WiFi!" className="mt-1.5" /></div>
+            <div><Label>Support Phone</Label><Input placeholder="+254712345678" className="mt-1.5" /></div>
+            <div><Label>Welcome Message</Label><Input placeholder="Welcome to fast, reliable WiFi!" className="mt-1.5" /></div>
+
+            <div className="pt-3 border-t border-border">
+              <h4 className="text-sm font-medium mb-3">Portal Theme</h4>
+              <div className="space-y-3">
+                <div>
+                  <Label>Primary Color</Label>
+                  <div className="flex gap-2 mt-1.5">
+                    <Input type="color" defaultValue="#2dd4bf" className="w-20 h-10" />
+                    <Input placeholder="#2dd4bf" className="flex-1" />
+                  </div>
+                </div>
+                <div>
+                  <Label>Background Style</Label>
+                  <Select defaultValue="dark">
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dark">Dark Mode</SelectItem>
+                      <SelectItem value="light">Light Mode</SelectItem>
+                      <SelectItem value="gradient">Gradient</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -43,15 +67,33 @@ export default function SettingsPage() {
                   <SelectItem value="paybill">M-Pesa Paybill</SelectItem>
                   <SelectItem value="phone">M-Pesa Phone Number</SelectItem>
                   <SelectItem value="paystack">Paystack</SelectItem>
+                  <SelectItem value="intasend">IntaSend</SelectItem>
+                  <SelectItem value="pesapal">PesaPal</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div><Label>Till / Paybill Number</Label><Input placeholder="123456" className="mt-1.5" /></div>
             <div><Label>Account Number (if Paybill)</Label><Input placeholder="Optional" className="mt-1.5" /></div>
-            <div className="space-y-3 pt-2">
+
+            <div className="pt-3 border-t border-border">
+              <h4 className="text-sm font-medium mb-3">Payment Gateway Credentials</h4>
+              <div className="space-y-3">
+                <div><Label>IntaSend Publishable Key</Label><Input placeholder="ISPubKey_..." className="mt-1.5" /></div>
+                <div><Label>IntaSend Secret Key</Label><Input type="password" placeholder="ISSecretKey_..." className="mt-1.5" /></div>
+                <div><Label>PesaPal Consumer Key</Label><Input placeholder="Consumer Key" className="mt-1.5" /></div>
+                <div><Label>PesaPal Consumer Secret</Label><Input type="password" placeholder="Consumer Secret" className="mt-1.5" /></div>
+                <div><Label>Paystack Public Key</Label><Input placeholder="pk_..." className="mt-1.5" /></div>
+                <div><Label>Paystack Secret Key</Label><Input type="password" placeholder="sk_..." className="mt-1.5" /></div>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-3 border-t border-border">
+              <h4 className="text-sm font-medium mb-1">Enable Payment Methods</h4>
               <div className="flex items-center justify-between"><Label>Enable M-Pesa Till</Label><Switch defaultChecked /></div>
               <div className="flex items-center justify-between"><Label>Enable M-Pesa Paybill</Label><Switch /></div>
               <div className="flex items-center justify-between"><Label>Enable Paystack</Label><Switch /></div>
+              <div className="flex items-center justify-between"><Label>Enable IntaSend</Label><Switch /></div>
+              <div className="flex items-center justify-between"><Label>Enable PesaPal</Label><Switch /></div>
             </div>
           </div>
         </div>

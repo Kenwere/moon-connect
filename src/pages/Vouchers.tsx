@@ -16,16 +16,8 @@ interface Voucher {
   createdAt: string;
 }
 
-const mockVouchers: Voucher[] = [
-  { code: "HSP-A1B2C3", package: "2 Hours", expiry: "2026-03-15", status: "Unused", createdAt: "2026-03-10" },
-  { code: "HSP-D4E5F6", package: "Full Day", expiry: "2026-03-12", status: "Used", createdAt: "2026-03-08" },
-  { code: "HSP-G7H8I9", package: "Half Day", expiry: "2026-03-20", status: "Unused", createdAt: "2026-03-10" },
-  { code: "HSP-J1K2L3", package: "Weekly Pass", expiry: "2026-03-25", status: "Unused", createdAt: "2026-03-09" },
-  { code: "HSP-M4N5O6", package: "2 Hours", expiry: "2026-03-11", status: "Used", createdAt: "2026-03-07" },
-];
-
 export default function Vouchers() {
-  const [vouchers] = useState(mockVouchers);
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
@@ -62,47 +54,55 @@ export default function Vouchers() {
         </Dialog>
       </PageHeader>
 
-      <div className="glass-card rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Code</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Package</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Created</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Expiry</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Status</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vouchers.map((v, i) => (
-                <tr key={i} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                  <td className="py-3 px-4">
-                    <span className="inline-flex items-center gap-2 font-mono text-xs bg-muted px-2 py-1 rounded">
-                      <Ticket className="w-3 h-3 text-primary" /> {v.code}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">{v.package}</td>
-                  <td className="py-3 px-4">{v.createdAt}</td>
-                  <td className="py-3 px-4">{v.expiry}</td>
-                  <td className="py-3 px-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      v.status === "Unused" ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
-                    }`}>{v.status}</span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex gap-1">
-                      <Button variant="outline" size="sm" className="h-7 text-xs"><Copy className="w-3 h-3 mr-1" /> Copy</Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs"><Send className="w-3 h-3 mr-1" /> Send</Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {vouchers.length === 0 ? (
+        <div className="glass-card rounded-xl p-12 text-center">
+          <Ticket className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-sm text-muted-foreground">No vouchers yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Generate vouchers to provide WiFi access codes</p>
         </div>
-      </div>
+      ) : (
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-left py-3 px-4 text-muted-foreground font-medium">Code</th>
+                  <th className="text-left py-3 px-4 text-muted-foreground font-medium">Package</th>
+                  <th className="text-left py-3 px-4 text-muted-foreground font-medium">Created</th>
+                  <th className="text-left py-3 px-4 text-muted-foreground font-medium">Expiry</th>
+                  <th className="text-left py-3 px-4 text-muted-foreground font-medium">Status</th>
+                  <th className="text-left py-3 px-4 text-muted-foreground font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vouchers.map((v, i) => (
+                  <tr key={i} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center gap-2 font-mono text-xs bg-muted px-2 py-1 rounded">
+                        <Ticket className="w-3 h-3 text-primary" /> {v.code}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">{v.package}</td>
+                    <td className="py-3 px-4">{v.createdAt}</td>
+                    <td className="py-3 px-4">{v.expiry}</td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        v.status === "Unused" ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
+                      }`}>{v.status}</span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-1">
+                        <Button variant="outline" size="sm" className="h-7 text-xs"><Copy className="w-3 h-3 mr-1" /> Copy</Button>
+                        <Button variant="outline" size="sm" className="h-7 text-xs"><Send className="w-3 h-3 mr-1" /> Send</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
