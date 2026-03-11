@@ -3,7 +3,7 @@ import AdminLayout from "@/components/AdminLayout";
 import PageHeader from "@/components/PageHeader";
 import StatCard from "@/components/StatCard";
 import { DollarSign, Users, Wifi, Clock, TrendingUp, Activity } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function Dashboard() {
