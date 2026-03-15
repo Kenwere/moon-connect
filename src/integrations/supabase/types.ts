@@ -159,6 +159,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          org_id: string | null
           updated_at: string
         }
         Insert: {
@@ -166,6 +167,7 @@ export type Database = {
           email?: string
           full_name?: string
           id: string
+          org_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -173,9 +175,18 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          org_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       routers: {
         Row: {
@@ -262,6 +273,7 @@ export type Database = {
           created_at: string
           device_ip: string | null
           duration_used: number | null
+          expires_at: string | null
           id: string
           login_time: string
           logout_time: string | null
@@ -277,6 +289,7 @@ export type Database = {
           created_at?: string
           device_ip?: string | null
           duration_used?: number | null
+          expires_at?: string | null
           id?: string
           login_time?: string
           logout_time?: string | null
@@ -292,6 +305,7 @@ export type Database = {
           created_at?: string
           device_ip?: string | null
           duration_used?: number | null
+          expires_at?: string | null
           id?: string
           login_time?: string
           logout_time?: string | null
