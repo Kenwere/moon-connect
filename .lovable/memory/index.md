@@ -1,41 +1,34 @@
-MoonConnect WiFi billing platform for ISPs - design system, hosting, and architecture
-
-## Branding
-- Product name: MoonConnect (was HotSpot Pro)
-- Multi-tenant ISP platform with subdomain routing
+MoonConnect WiFi billing system - design system and hosting preferences
 
 ## Hosting
-- Frontend: Vercel
-- Backend: Railway (future)
-- Database: Supabase (Lovable Cloud)
+- Frontend: Vercel (wildcard subdomain for multi-tenant)
+- Backend: Lovable Cloud (Supabase)
 
 ## Design
 - Font display: JetBrains Mono
 - Font body: Inter
-- Primary: HSL 175 80% 45% (cyan/teal)
+- Primary: HSL 199 89% 48% (professional blue)
 - Theme: dark default, light mode supported
-- Glass morphism cards, grid pattern backgrounds
-- gradient-primary, gradient-text, glass-card, glass-card-glow utilities
+- NO gradients - solid colors only, professional look
+- glass-card utility (solid bg-card, border, shadow-sm)
+- Branding: MoonConnect (not HotSpot Pro)
 
 ## Auth
 - Auto-confirm email enabled
-- Sample login: register with admin@gmail.com / admin123
 - Roles: super_admin, admin, operator, support (stored in user_roles table)
-- Auto-create profile + admin role + organization on signup via trigger
-- ISP name captured at registration, generates subdomain
+- Auto-create profile + org + admin role on signup via trigger
+- org_id added to profiles for team membership
 
-## Multi-Tenancy
-- Organizations table links ISPs to their data
-- org_id on routers, packages, payments, sessions, vouchers, settings
-- Subdomain format: isp-name.moonconnect.app
+## Multi-tenant
+- Organizations table with subdomain field
+- ISP registers → auto-creates org with subdomain
+- Settings per org (payment credentials, branding, portal theme)
 
-## MikroTik Provisioning
-- provision-router edge function serves .rsc scripts (no JWT, token-based auth)
-- Router fetches via: /tool fetch url="..." mode=https dst-path=moonconnect.rsc
-- Alternative: download moonconnect.rsc file from browser
-- Provision token per router, refreshable
-- Script configures: IP pool, DHCP, DNS, hotspot, walled garden, NAT, firewall, bandwidth, logging
+## Payment Gateways
+- Paystack, IntaSend, PesaPal supported
+- Credentials stored in settings table per org
+- Edge functions: initiate-payment, payment-webhook, expire-sessions
 
-## Payment Integrations (planned)
-- Paystack, PesaPal, IntaSend
-- Auto-connect on payment, auto-disconnect on expiry
+## MikroTik
+- provision-router edge function serves .rsc scripts via token URL
+- Download moonconnect.rsc or auto-fetch via /tool fetch
