@@ -193,6 +193,7 @@ export type Database = {
           active_users: number
           api_port: number
           bandwidth_control: boolean
+          connection_type: string | null
           created_at: string
           device_tracking: boolean
           disable_sharing: boolean
@@ -216,6 +217,7 @@ export type Database = {
           active_users?: number
           api_port?: number
           bandwidth_control?: boolean
+          connection_type?: string | null
           created_at?: string
           device_tracking?: boolean
           disable_sharing?: boolean
@@ -239,6 +241,7 @@ export type Database = {
           active_users?: number
           api_port?: number
           bandwidth_control?: boolean
+          connection_type?: string | null
           created_at?: string
           device_tracking?: boolean
           disable_sharing?: boolean
@@ -360,6 +363,7 @@ export type Database = {
           paystack_secret_key: string | null
           pesapal_consumer_key: string | null
           pesapal_consumer_secret: string | null
+          portal_theme: string | null
           primary_color: string | null
           support_phone: string | null
           till_number: string | null
@@ -392,6 +396,7 @@ export type Database = {
           paystack_secret_key?: string | null
           pesapal_consumer_key?: string | null
           pesapal_consumer_secret?: string | null
+          portal_theme?: string | null
           primary_color?: string | null
           support_phone?: string | null
           till_number?: string | null
@@ -424,6 +429,7 @@ export type Database = {
           paystack_secret_key?: string | null
           pesapal_consumer_key?: string | null
           pesapal_consumer_secret?: string | null
+          portal_theme?: string | null
           primary_color?: string | null
           support_phone?: string | null
           till_number?: string | null

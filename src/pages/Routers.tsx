@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Router as RouterIcon, Settings, Wifi, WifiOff, Copy, Check, Link2, Download, RefreshCw, Trash2, MoreHorizontal, Eye, Power } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Router as RouterIcon, Settings, Wifi, WifiOff, Copy, Check, Link2, Download, RefreshCw, Trash2, MoreHorizontal, Eye } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -18,7 +19,7 @@ interface RouterDevice {
   payment_destination: string; disable_sharing: boolean; device_tracking: boolean;
   bandwidth_control: boolean; session_logging: boolean; dns_name: string | null;
   hotspot_address: string | null; provision_token: string | null; org_id: string | null;
-  created_at?: string; password?: string;
+  connection_type?: string; created_at?: string; password?: string;
 }
 
 export default function Routers() {
@@ -35,6 +36,7 @@ export default function Routers() {
     name: "", location: "", ip_address: "192.168.88.1", api_port: 8728,
     username: "admin", password: "", dns_name: "hotspot.local",
     hotspot_address: "10.5.50.1/24", payment_destination: "Till",
+    connection_type: "hotspot",
     disable_sharing: false, device_tracking: true, bandwidth_control: true, session_logging: true,
   });
 
@@ -58,12 +60,17 @@ export default function Routers() {
       user_id: user.id, org_id: orgId, name: form.name, location: form.location,
       ip_address: form.ip_address, api_port: form.api_port, username: form.username,
       password: form.password, dns_name: form.dns_name, hotspot_address: form.hotspot_address,
-      payment_destination: form.payment_destination, disable_sharing: form.disable_sharing,
-      device_tracking: form.device_tracking, bandwidth_control: form.bandwidth_control,
-      session_logging: form.session_logging,
+      payment_destination: form.payment_destination, connection_type: form.connection_type,
+      disable_sharing: form.disable_sharing, device_tracking: form.device_tracking,
+      bandwidth_control: form.bandwidth_control, session_logging: form.session_logging,
     } as any);
     if (error) toast.error("Failed to add router");
-    else { toast.success("Router added!"); setDialogOpen(false); fetchRouters(); }
+    else {
+      toast.success("Router added!");
+      setDialogOpen(false);
+      fetchRouters();
+      setForm({ name: "", location: "", ip_address: "192.168.88.1", api_port: 8728, username: "admin", password: "", dns_name: "hotspot.local", hotspot_address: "10.5.50.1/24", payment_destination: "Till", connection_type: "hotspot", disable_sharing: false, device_tracking: true, bandwidth_control: true, session_logging: true });
+    }
   };
 
   const deleteRouter = async (id: string) => {
@@ -122,6 +129,16 @@ export default function Routers() {
             <div className="space-y-4 mt-4">
               <div><Label>Router Name</Label><Input placeholder="e.g. Main Router" className="mt-1.5" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
               <div><Label>Location</Label><Input placeholder="e.g. Cafe" className="mt-1.5" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></div>
+              <div>
+                <Label>Connection Type</Label>
+                <Select value={form.connection_type} onValueChange={v => setForm(f => ({ ...f, connection_type: v }))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hotspot">Hotspot</SelectItem>
+                    <SelectItem value="pppoe">PPPoE</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>IP Address</Label><Input placeholder="192.168.88.1" className="mt-1.5" value={form.ip_address} onChange={e => setForm(f => ({ ...f, ip_address: e.target.value }))} /></div>
                 <div><Label>API Port</Label><Input type="number" placeholder="8728" className="mt-1.5" value={form.api_port} onChange={e => setForm(f => ({ ...f, api_port: Number(e.target.value) }))} /></div>
@@ -157,20 +174,11 @@ export default function Routers() {
             <div className="space-y-5 mt-2">
               <div>
                 <h4 className="text-sm font-semibold mb-2">Option 1: Auto-Provision via Terminal</h4>
-                <p className="text-xs text-muted-foreground mb-3">Paste in MikroTik Terminal. It downloads and runs the setup script automatically.</p>
+                <p className="text-xs text-muted-foreground mb-3">Paste in MikroTik Terminal to auto-download and run the setup script.</p>
                 <div className="relative">
                   <pre className="bg-muted/50 border border-border rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all">{getMikroTikCommand(selectedRouter.provision_token)}</pre>
                   <Button size="sm" variant="outline" className="absolute top-2 right-2" onClick={() => copyToClipboard(getMikroTikCommand(selectedRouter.provision_token!), "cmd")}>
                     {copiedCmd ? <Check className="w-3 h-3 mr-1 text-success" /> : <Copy className="w-3 h-3 mr-1" />} {copiedCmd ? "Copied!" : "Copy"}
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Provision URL</h4>
-                <div className="relative">
-                  <pre className="bg-muted/50 border border-border rounded-lg p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all">{getProvisionUrl(selectedRouter.provision_token)}</pre>
-                  <Button size="sm" variant="outline" className="absolute top-1.5 right-1.5" onClick={() => copyToClipboard(getProvisionUrl(selectedRouter.provision_token!), "link")}>
-                    {copiedLink ? <Check className="w-3 h-3 mr-1 text-success" /> : <Copy className="w-3 h-3 mr-1" />} {copiedLink ? "Copied!" : "Copy"}
                   </Button>
                 </div>
               </div>
@@ -180,7 +188,7 @@ export default function Routers() {
                 <Button variant="outline" size="sm" onClick={() => downloadRsc(selectedRouter)}><Download className="w-4 h-4 mr-2" /> Download moonconnect.rsc</Button>
               </div>
               <div className="flex gap-2 pt-2 border-t border-border">
-                <Button variant="outline" size="sm" onClick={() => refreshToken(selectedRouter.id)}><RefreshCw className="w-4 h-4 mr-1" /> Refresh Provision Link</Button>
+                <Button variant="outline" size="sm" onClick={() => refreshToken(selectedRouter.id)}><RefreshCw className="w-4 h-4 mr-1" /> Refresh Link</Button>
               </div>
             </div>
           )}
@@ -203,8 +211,8 @@ export default function Routers() {
                   <p className={`font-medium ${selectedRouter.status === "Online" ? "text-success" : "text-destructive"}`}>{selectedRouter.status}</p>
                 </div>
                 <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">Active Users</p>
-                  <p className="font-display font-bold text-primary">{selectedRouter.active_users}</p>
+                  <p className="text-xs text-muted-foreground">Type</p>
+                  <p className="font-medium capitalize">{selectedRouter.connection_type || "hotspot"}</p>
                 </div>
                 <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-muted-foreground">IP Address</p>
@@ -219,6 +227,10 @@ export default function Routers() {
                   <p>{selectedRouter.model}</p>
                 </div>
                 <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Active Users</p>
+                  <p className="font-display font-bold text-primary">{selectedRouter.active_users}</p>
+                </div>
+                <div className="bg-muted/30 rounded-lg p-3">
                   <p className="text-xs text-muted-foreground">Location</p>
                   <p>{selectedRouter.location || "—"}</p>
                 </div>
@@ -226,24 +238,6 @@ export default function Routers() {
                   <p className="text-xs text-muted-foreground">DNS Name</p>
                   <p className="font-mono text-xs">{selectedRouter.dns_name || "—"}</p>
                 </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">Hotspot Address</p>
-                  <p className="font-mono text-xs">{selectedRouter.hotspot_address || "—"}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">Username</p>
-                  <p className="font-mono text-xs">{selectedRouter.username}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">Payment</p>
-                  <p>{selectedRouter.payment_destination}</p>
-                </div>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">Sharing disabled</span><span>{selectedRouter.disable_sharing ? "Yes" : "No"}</span></div>
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">Device tracking</span><span>{selectedRouter.device_tracking ? "Enabled" : "Disabled"}</span></div>
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">Bandwidth control</span><span>{selectedRouter.bandwidth_control ? "Enabled" : "Disabled"}</span></div>
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">Session logging</span><span>{selectedRouter.session_logging ? "Enabled" : "Disabled"}</span></div>
               </div>
               <div className="flex gap-2 pt-3 border-t border-border">
                 <Button variant="outline" size="sm" onClick={() => { setDetailDialogOpen(false); openProvision(selectedRouter); }}>
@@ -297,8 +291,8 @@ export default function Routers() {
               </div>
               <div className="space-y-2 text-sm mb-4">
                 <div className="flex justify-between"><span className="text-muted-foreground">Status</span><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.status === "Online" ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}>{r.status}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize text-xs">{(r as any).connection_type || "hotspot"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">IP</span><span className="font-mono text-xs">{r.ip_address}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Model</span><span>{r.model}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Active Users</span><span className="font-display font-bold text-primary">{r.active_users}</span></div>
               </div>
               <div className="flex gap-2">

@@ -1,0 +1,161 @@
+export interface PortalTheme {
+  id: string;
+  name: string;
+  background: string;
+  cardBg: string;
+  cardBorder: string;
+  textPrimary: string;
+  textSecondary: string;
+  accent: string;
+  accentFg: string;
+  selectedRing: string;
+  badgeBg: string;
+  badgeText: string;
+}
+
+export const portalThemes: PortalTheme[] = [
+  {
+    id: "classic",
+    name: "Classic Dark",
+    background: "bg-[#0f1419]",
+    cardBg: "bg-[#1a1f2e]",
+    cardBorder: "border-[#2a3040]",
+    textPrimary: "text-[#e4e8ee]",
+    textSecondary: "text-[#8899aa]",
+    accent: "bg-[#0ea5e9]",
+    accentFg: "text-white",
+    selectedRing: "ring-[#0ea5e9]",
+    badgeBg: "bg-[#0ea5e9]",
+    badgeText: "text-white",
+  },
+  {
+    id: "midnight",
+    name: "Midnight Blue",
+    background: "bg-[#0a0e1a]",
+    cardBg: "bg-[#111827]",
+    cardBorder: "border-[#1e293b]",
+    textPrimary: "text-[#f1f5f9]",
+    textSecondary: "text-[#64748b]",
+    accent: "bg-[#3b82f6]",
+    accentFg: "text-white",
+    selectedRing: "ring-[#3b82f6]",
+    badgeBg: "bg-[#3b82f6]",
+    badgeText: "text-white",
+  },
+  {
+    id: "emerald",
+    name: "Emerald Forest",
+    background: "bg-[#0c1a14]",
+    cardBg: "bg-[#132a1f]",
+    cardBorder: "border-[#1e3a2b]",
+    textPrimary: "text-[#e8f5e9]",
+    textSecondary: "text-[#6b9b7e]",
+    accent: "bg-[#10b981]",
+    accentFg: "text-white",
+    selectedRing: "ring-[#10b981]",
+    badgeBg: "bg-[#10b981]",
+    badgeText: "text-white",
+  },
+  {
+    id: "sunset",
+    name: "Warm Sunset",
+    background: "bg-[#1a0f0a]",
+    cardBg: "bg-[#2a1810]",
+    cardBorder: "border-[#3d2518]",
+    textPrimary: "text-[#fef3e2]",
+    textSecondary: "text-[#b8956a]",
+    accent: "bg-[#f59e0b]",
+    accentFg: "text-[#1a0f0a]",
+    selectedRing: "ring-[#f59e0b]",
+    badgeBg: "bg-[#f59e0b]",
+    badgeText: "text-[#1a0f0a]",
+  },
+  {
+    id: "rose",
+    name: "Rose Gold",
+    background: "bg-[#1a0f14]",
+    cardBg: "bg-[#2a1520]",
+    cardBorder: "border-[#3d2030]",
+    textPrimary: "text-[#fde8ef]",
+    textSecondary: "text-[#b87d94]",
+    accent: "bg-[#f43f5e]",
+    accentFg: "text-white",
+    selectedRing: "ring-[#f43f5e]",
+    badgeBg: "bg-[#f43f5e]",
+    badgeText: "text-white",
+  },
+  {
+    id: "ocean",
+    name: "Ocean Breeze",
+    background: "bg-[#f0f9ff]",
+    cardBg: "bg-white",
+    cardBorder: "border-[#bae6fd]",
+    textPrimary: "text-[#0c4a6e]",
+    textSecondary: "text-[#7dd3fc]",
+    accent: "bg-[#0284c7]",
+    accentFg: "text-white",
+    selectedRing: "ring-[#0284c7]",
+    badgeBg: "bg-[#0284c7]",
+    badgeText: "text-white",
+  },
+  {
+    id: "clean",
+    name: "Clean White",
+    background: "bg-[#f8fafc]",
+    cardBg: "bg-white",
+    cardBorder: "border-[#e2e8f0]",
+    textPrimary: "text-[#1e293b]",
+    textSecondary: "text-[#94a3b8]",
+    accent: "bg-[#334155]",
+    accentFg: "text-white",
+    selectedRing: "ring-[#334155]",
+    badgeBg: "bg-[#334155]",
+    badgeText: "text-white",
+  },
+  {
+    id: "purple",
+    name: "Royal Purple",
+    background: "bg-[#0f0a1a]",
+    cardBg: "bg-[#1a1028]",
+    cardBorder: "border-[#2d1f45]",
+    textPrimary: "text-[#ede9fe]",
+    textSecondary: "text-[#8b7ab8]",
+    accent: "bg-[#8b5cf6]",
+    accentFg: "text-white",
+    selectedRing: "ring-[#8b5cf6]",
+    badgeBg: "bg-[#8b5cf6]",
+    badgeText: "text-white",
+  },
+  {
+    id: "slate",
+    name: "Slate Professional",
+    background: "bg-[#f1f5f9]",
+    cardBg: "bg-white",
+    cardBorder: "border-[#cbd5e1]",
+    textPrimary: "text-[#0f172a]",
+    textSecondary: "text-[#64748b]",
+    accent: "bg-[#475569]",
+    accentFg: "text-white",
+    selectedRing: "ring-[#475569]",
+    badgeBg: "bg-[#475569]",
+    badgeText: "text-white",
+  },
+  {
+    id: "neon",
+    name: "Neon Cyber",
+    background: "bg-[#0a0a0f]",
+    cardBg: "bg-[#12121a]",
+    cardBorder: "border-[#1f1f30]",
+    textPrimary: "text-[#e0e0ff]",
+    textSecondary: "text-[#6666aa]",
+    accent: "bg-[#06b6d4]",
+    accentFg: "text-[#0a0a0f]",
+    selectedRing: "ring-[#06b6d4]",
+    badgeBg: "bg-[#06b6d4]",
+    badgeText: "text-[#0a0a0f]",
+  },
+];
+
+export function getTheme(id: string): PortalTheme {
+  return portalThemes.find(t => t.id === id) || portalThemes[0];
+}
