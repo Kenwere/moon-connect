@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save, CreditCard, Shield, Palette, Loader as Loader2, Globe } from "lucide-react";
+import { Save, CreditCard, Shield, Palette, Loader2, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { portalThemes } from "@/lib/portal-themes";
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -18,7 +19,7 @@ export default function SettingsPage() {
 
   const [form, setForm] = useState({
     business_name: "", business_logo_url: "", support_phone: "", welcome_message: "",
-    primary_color: "#0ea5e9", background_style: "dark",
+    primary_color: "#0ea5e9", background_style: "dark", portal_theme: "classic",
     default_payment_method: "till", till_number: "", paybill_number: "", account_number: "",
     intasend_pub_key: "", intasend_secret_key: "", pesapal_consumer_key: "", pesapal_consumer_secret: "",
     paystack_pub_key: "", paystack_secret_key: "",
@@ -42,6 +43,7 @@ export default function SettingsPage() {
           business_name: s.business_name || "", business_logo_url: s.business_logo_url || "",
           support_phone: s.support_phone || "", welcome_message: s.welcome_message || "",
           primary_color: s.primary_color || "#0ea5e9", background_style: s.background_style || "dark",
+          portal_theme: s.portal_theme || "classic",
           default_payment_method: s.default_payment_method || "till",
           till_number: s.till_number || "", paybill_number: s.paybill_number || "", account_number: s.account_number || "",
           intasend_pub_key: s.intasend_pub_key || "", intasend_secret_key: s.intasend_secret_key || "",
@@ -79,37 +81,41 @@ export default function SettingsPage() {
       <PageHeader title="Settings" subtitle="Configure your hotspot system" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Business Settings */}
+        {/* Business + Portal Theme */}
         <div className="glass-card p-6">
           <div className="flex items-center gap-2 mb-5">
             <Palette className="w-5 h-5 text-primary" />
-            <h3 className="font-display font-semibold">Business Settings</h3>
+            <h3 className="font-display font-semibold">Business & Portal</h3>
           </div>
           <div className="space-y-4">
             <div><Label>Business Name</Label><Input placeholder="Your Business Name" className="mt-1.5" value={form.business_name} onChange={e => setForm(f => ({ ...f, business_name: e.target.value }))} /></div>
             <div><Label>Business Logo URL</Label><Input placeholder="https://..." className="mt-1.5" value={form.business_logo_url} onChange={e => setForm(f => ({ ...f, business_logo_url: e.target.value }))} /></div>
             <div><Label>Support Phone</Label><Input placeholder="+254712345678" className="mt-1.5" value={form.support_phone} onChange={e => setForm(f => ({ ...f, support_phone: e.target.value }))} /></div>
             <div><Label>Welcome Message</Label><Input placeholder="Welcome to fast, reliable WiFi!" className="mt-1.5" value={form.welcome_message} onChange={e => setForm(f => ({ ...f, welcome_message: e.target.value }))} /></div>
+
             <div className="pt-3 border-t border-border">
               <h4 className="text-sm font-medium mb-3">Portal Theme</h4>
-              <div className="space-y-3">
-                <div>
-                  <Label>Primary Color</Label>
-                  <div className="flex gap-2 mt-1.5">
-                    <Input type="color" value={form.primary_color} onChange={e => setForm(f => ({ ...f, primary_color: e.target.value }))} className="w-20 h-10" />
-                    <Input value={form.primary_color} onChange={e => setForm(f => ({ ...f, primary_color: e.target.value }))} className="flex-1" />
-                  </div>
-                </div>
-                <div>
-                  <Label>Background Style</Label>
-                  <Select value={form.background_style} onValueChange={v => setForm(f => ({ ...f, background_style: v }))}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dark">Dark Mode</SelectItem>
-                      <SelectItem value="light">Light Mode</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <p className="text-xs text-muted-foreground mb-3">Choose the look of your captive portal page that WiFi users see.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {portalThemes.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setForm(f => ({ ...f, portal_theme: t.id }))}
+                    className={`p-3 rounded-lg border text-left transition-all text-xs ${
+                      form.portal_theme === t.id
+                        ? "border-primary ring-2 ring-primary/30"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className={`w-4 h-4 rounded-full ${t.accent}`} />
+                      <span className="font-medium">{t.name}</span>
+                    </div>
+                    <div className={`h-8 rounded ${t.background} flex items-center justify-center`}>
+                      <div className={`h-4 w-16 rounded ${t.cardBg} border ${t.cardBorder}`} />
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -138,7 +144,7 @@ export default function SettingsPage() {
             <div><Label>Till / Paybill Number</Label><Input placeholder="123456" className="mt-1.5" value={form.till_number || form.paybill_number} onChange={e => setForm(f => ({ ...f, till_number: e.target.value, paybill_number: e.target.value }))} /></div>
             <div><Label>Account Number (if Paybill)</Label><Input placeholder="Optional" className="mt-1.5" value={form.account_number} onChange={e => setForm(f => ({ ...f, account_number: e.target.value }))} /></div>
             <div className="pt-3 border-t border-border">
-              <h4 className="text-sm font-medium mb-3">Payment Gateway Credentials</h4>
+              <h4 className="text-sm font-medium mb-3">Gateway Credentials</h4>
               <div className="space-y-3">
                 <div><Label>Paystack Public Key</Label><Input placeholder="pk_..." className="mt-1.5" value={form.paystack_pub_key} onChange={e => setForm(f => ({ ...f, paystack_pub_key: e.target.value }))} /></div>
                 <div><Label>Paystack Secret Key</Label><Input type="password" placeholder="sk_..." className="mt-1.5" value={form.paystack_secret_key} onChange={e => setForm(f => ({ ...f, paystack_secret_key: e.target.value }))} /></div>
@@ -150,11 +156,11 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-3 pt-3 border-t border-border">
               <h4 className="text-sm font-medium mb-1">Enable Payment Methods</h4>
-              <div className="flex items-center justify-between"><Label>Enable M-Pesa Till</Label><Switch checked={form.enable_mpesa_till} onCheckedChange={v => setForm(f => ({ ...f, enable_mpesa_till: v }))} /></div>
-              <div className="flex items-center justify-between"><Label>Enable M-Pesa Paybill</Label><Switch checked={form.enable_mpesa_paybill} onCheckedChange={v => setForm(f => ({ ...f, enable_mpesa_paybill: v }))} /></div>
-              <div className="flex items-center justify-between"><Label>Enable Paystack</Label><Switch checked={form.enable_paystack} onCheckedChange={v => setForm(f => ({ ...f, enable_paystack: v }))} /></div>
-              <div className="flex items-center justify-between"><Label>Enable IntaSend</Label><Switch checked={form.enable_intasend} onCheckedChange={v => setForm(f => ({ ...f, enable_intasend: v }))} /></div>
-              <div className="flex items-center justify-between"><Label>Enable PesaPal</Label><Switch checked={form.enable_pesapal} onCheckedChange={v => setForm(f => ({ ...f, enable_pesapal: v }))} /></div>
+              <div className="flex items-center justify-between"><Label>M-Pesa Till</Label><Switch checked={form.enable_mpesa_till} onCheckedChange={v => setForm(f => ({ ...f, enable_mpesa_till: v }))} /></div>
+              <div className="flex items-center justify-between"><Label>M-Pesa Paybill</Label><Switch checked={form.enable_mpesa_paybill} onCheckedChange={v => setForm(f => ({ ...f, enable_mpesa_paybill: v }))} /></div>
+              <div className="flex items-center justify-between"><Label>Paystack</Label><Switch checked={form.enable_paystack} onCheckedChange={v => setForm(f => ({ ...f, enable_paystack: v }))} /></div>
+              <div className="flex items-center justify-between"><Label>IntaSend</Label><Switch checked={form.enable_intasend} onCheckedChange={v => setForm(f => ({ ...f, enable_intasend: v }))} /></div>
+              <div className="flex items-center justify-between"><Label>PesaPal</Label><Switch checked={form.enable_pesapal} onCheckedChange={v => setForm(f => ({ ...f, enable_pesapal: v }))} /></div>
             </div>
           </div>
         </div>
@@ -163,7 +169,7 @@ export default function SettingsPage() {
         <div className="glass-card p-6">
           <div className="flex items-center gap-2 mb-5">
             <Shield className="w-5 h-5 text-primary" />
-            <h3 className="font-display font-semibold">Security</h3>
+            <h3 className="font-display font-semibold">Security & Sessions</h3>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between"><Label>Require MAC binding</Label><Switch checked={form.mac_binding} onCheckedChange={v => setForm(f => ({ ...f, mac_binding: v }))} /></div>
@@ -181,8 +187,11 @@ export default function SettingsPage() {
           </div>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Subdomain</span><span className="font-mono text-primary">{subdomain}.moonconnect.app</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Portal URL</span><span className="font-mono text-xs">https://{subdomain}.moonconnect.app/portal</span></div>
-            <p className="text-xs text-muted-foreground pt-2 border-t border-border">Configure your Vercel project with wildcard subdomain routing to enable ISP-specific portals.</p>
+            <div className="flex justify-between"><span className="text-muted-foreground">Portal URL</span><span className="font-mono text-xs break-all">https://{subdomain}.moonconnect.app/portal</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Test locally</span><span className="font-mono text-xs break-all">/portal?org={subdomain}</span></div>
+            <p className="text-xs text-muted-foreground pt-2 border-t border-border">
+              Use the <code className="text-primary">?org={subdomain}</code> query parameter to test your portal theme before setting up DNS.
+            </p>
           </div>
         </div>
       </div>
