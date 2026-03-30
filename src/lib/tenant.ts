@@ -40,13 +40,13 @@ export function getTenantLoginUrl(subdomain: string) {
     hostname === "localhost" ||
     hostname === "127.0.0.1" ||
     hostname.endsWith(".localhost");
+  const rootDomain = import.meta.env.VITE_APP_ROOT_DOMAIN;
+  const currentDomainSupportsWildcard =
+    Boolean(rootDomain) && hostname === rootDomain;
 
-  if (isLocalHost) {
+  if (isLocalHost || !currentDomainSupportsWildcard) {
     return `${window.location.origin}/login?org=${cleanSubdomain}`;
   }
-
-  const rootDomain =
-    import.meta.env.VITE_APP_ROOT_DOMAIN || "moonconnect.app";
 
   return `https://${cleanSubdomain}.${rootDomain}/login`;
 }
@@ -64,13 +64,13 @@ export function getTenantAppUrl(subdomain: string) {
     hostname === "localhost" ||
     hostname === "127.0.0.1" ||
     hostname.endsWith(".localhost");
+  const rootDomain = import.meta.env.VITE_APP_ROOT_DOMAIN;
+  const currentDomainSupportsWildcard =
+    Boolean(rootDomain) && hostname === rootDomain;
 
-  if (isLocalHost) {
+  if (isLocalHost || !currentDomainSupportsWildcard) {
     return `${window.location.origin}/app?org=${cleanSubdomain}`;
   }
-
-  const rootDomain =
-    import.meta.env.VITE_APP_ROOT_DOMAIN || "moonconnect.app";
 
   return `https://${cleanSubdomain}.${rootDomain}/app`;
 }

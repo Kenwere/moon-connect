@@ -70,6 +70,11 @@ export default function Register() {
     return clean || "your-isp";
   }, [ispName, subdomain]);
 
+  const loginPreviewUrl = useMemo(
+    () => getTenantLoginUrl(subdomainPreview),
+    [subdomainPreview],
+  );
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanSubdomain = sanitizeSubdomain(subdomain);
@@ -150,7 +155,7 @@ export default function Register() {
                 Your subdomain
               </p>
               <p className="mt-2 font-mono text-lg text-primary">
-                {successState.subdomain}.moonconnect.app
+                {successState.subdomain}
               </p>
               <p className="mt-3 text-xs text-muted-foreground break-all">
                 Login URL: {successState.loginUrl}
@@ -210,7 +215,7 @@ export default function Register() {
             <div className="rounded-2xl border border-border/60 bg-background/40 p-4">
               <p className="font-medium text-foreground">2. Login on tenant URL</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Example: `yourisp.moonconnect.app/login`
+                We will generate the working tenant login URL for your setup.
               </p>
             </div>
             <div className="rounded-2xl border border-border/60 bg-background/40 p-4">
@@ -280,7 +285,7 @@ export default function Register() {
                 <span className="text-muted-foreground">
                   Login URL preview:
                   <span className="ml-1 font-mono text-primary">
-                    {subdomainPreview}.moonconnect.app/login
+                    {loginPreviewUrl}
                   </span>
                 </span>
                 <span

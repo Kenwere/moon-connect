@@ -14,7 +14,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getTenantAppUrl, getTenantSubdomain } from "@/lib/tenant";
+import { getTenantAppUrl, getTenantLoginUrl, getTenantSubdomain } from "@/lib/tenant";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -22,6 +22,10 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   const tenantSubdomain = useMemo(() => getTenantSubdomain(), []);
+  const tenantLoginUrl = useMemo(
+    () => (tenantSubdomain ? getTenantLoginUrl(tenantSubdomain) : window.location.href),
+    [tenantSubdomain],
+  );
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,9 +103,7 @@ export default function Login() {
               Current tenant
             </div>
             <p className="mt-2 font-mono text-base text-primary">
-              {tenantSubdomain
-                ? `${tenantSubdomain}.moonconnect.app`
-                : "main site login"}
+              {tenantSubdomain ? tenantLoginUrl : "main site login"}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
               After login, we will route you to your ISP tenant dashboard.
