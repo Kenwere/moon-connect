@@ -1,8 +1,11 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   getRouterHealth,
   type RouterRecord,
 } from "../_shared/mikrotik.ts";
+import {
+  auditLog,
+  requireOwnedRouter,
+} from "../_shared/backend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,31 +27,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    const { data: router, error } = await supabase
-      .from("routers")
-      .select("*")
-      .eq("id", router_id)
-      .single();
-
-    if (error || !router) {
-      return new Response(JSON.stringify({ error: "Router not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const { service, user, router } = await requireOwnedRouter(req, router_id);
 
     const snapshot = await getRouterHealth(router as RouterRecord);
     const status = snapshot.isOnline ? "Online" : "Offline";
 
-    await supabase
+    await service
       .from("routers")
       .update({ status })
       .eq("id", router.id);
+
+    await auditLog(service, {
+      user_id: user.id,
+      org_id: router.org_id,
+      router_id: router.id,
+      action: "router.status_checked",
+      status: "success",
+      message: `Router status resolved as ${status}`,
+      meta: { uptime_seconds: snapshot.uptimeSeconds },
+    });
 
     return new Response(
       JSON.stringify({

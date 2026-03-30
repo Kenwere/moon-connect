@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { getTheme, type PortalTheme } from "@/lib/portal-themes";
+import { toast } from "sonner";
 
 interface PortalPackage {
   id: string;
@@ -173,6 +174,32 @@ export default function CaptivePortal() {
     }
   };
 
+  const handleRedeemVoucher = async () => {
+    if (!voucher || !orgId) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("redeem-voucher", {
+        body: {
+          code: voucher,
+          org_id: orgId,
+          router_token: routerToken,
+          device_ip: deviceIp,
+          mac_address: macAddress,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Voucher redeemed: ${data?.package_name || "access granted"}`);
+      setShowVoucher(false);
+      setVoucher("");
+      setStep("pay");
+    } catch (error) {
+      console.error("Voucher redeem error:", error);
+      toast.error("Failed to redeem voucher");
+    }
+  };
+
   const t = theme;
 
   if (loading) {
@@ -318,7 +345,7 @@ export default function CaptivePortal() {
                     onChange={(event) => setVoucher(event.target.value)}
                     className="font-mono text-sm"
                   />
-                  <Button variant="outline">Redeem</Button>
+                  <Button variant="outline" onClick={handleRedeemVoucher}>Redeem</Button>
                 </motion.div>
               )}
             </motion.div>

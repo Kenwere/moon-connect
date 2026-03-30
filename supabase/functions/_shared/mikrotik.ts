@@ -54,27 +54,43 @@ async function routerFetch<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const { baseUrl, authHeader } = getRestConnection(router);
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      Authorization: authHeader,
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
+  const maxAttempts = 3;
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(
-      `RouterOS request failed (${response.status}) for ${path}: ${body}`,
-    );
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        ...init,
+        signal: AbortSignal.timeout(8000),
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+          ...(init.headers || {}),
+        },
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(
+          `RouterOS request failed (${response.status}) for ${path}: ${body}`,
+        );
+      }
+
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Unknown router error");
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+        continue;
+      }
+    }
   }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return (await response.json()) as T;
+  throw lastError || new Error(`RouterOS request failed for ${path}`);
 }
 
 async function listItems(

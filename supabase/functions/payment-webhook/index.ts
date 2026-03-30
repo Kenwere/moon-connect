@@ -4,6 +4,7 @@ import {
   ensurePppoeAccess,
   type RouterRecord,
 } from "../_shared/mikrotik.ts";
+import { auditLog } from "../_shared/backend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -277,6 +278,15 @@ Deno.serve(async (req) => {
     }
 
     if (!verified) {
+      await auditLog(supabase, {
+        user_id: payment.user_id,
+        org_id: payment.org_id,
+        router_id: payment.router_id,
+        payment_id: payment.id,
+        action: "payment.verification_failed",
+        status: "error",
+        message: `Webhook verification failed for ${provider || "unknown provider"}`,
+      });
       return new Response(JSON.stringify({ error: "Webhook verification failed" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -335,6 +345,21 @@ Deno.serve(async (req) => {
         pppoe_account_id: pppoeAccount?.id || payment.pppoe_account_id || null,
       })
       .eq("id", payment.id);
+
+    await auditLog(supabase, {
+      user_id: payment.user_id,
+      org_id: payment.org_id,
+      router_id: payment.router_id,
+      payment_id: payment.id,
+      action: "payment.completed",
+      status: "success",
+      message: `Payment confirmed via ${provider || "provider"}`,
+      meta: {
+        period_start: periodStart,
+        period_end: periodEnd,
+        provider_reference: normalizedProviderReference,
+      },
+    });
 
     if (router) {
       await unlockRouterAccess(payment, router as RouterRecord, packageData, pppoeAccount);

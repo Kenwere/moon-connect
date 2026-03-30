@@ -3,6 +3,10 @@ import {
   getRouterHealth,
   type RouterRecord,
 } from "../_shared/mikrotik.ts";
+import {
+  auditLog,
+  requireCronSecret,
+} from "../_shared/backend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +20,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    requireCronSecret(req);
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -59,6 +65,19 @@ Deno.serve(async (req) => {
           status: snapshot.isOnline ? "Online" : "Offline",
         })
         .eq("id", router.id);
+
+      await auditLog(supabase, {
+        user_id: router.user_id,
+        org_id: router.org_id,
+        router_id: router.id,
+        action: "router.health_sampled",
+        status: snapshot.isOnline ? "success" : "warning",
+        message: `Router sampled as ${snapshot.isOnline ? "online" : "offline"}`,
+        meta: {
+          sample_interval_seconds: sampleIntervalSeconds,
+          uptime_seconds: snapshot.uptimeSeconds,
+        },
+      });
     }
 
     return new Response(

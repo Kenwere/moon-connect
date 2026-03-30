@@ -4,6 +4,10 @@ import {
   revokePppoeAccess,
   type RouterRecord,
 } from "../_shared/mikrotik.ts";
+import {
+  auditLog,
+  requireCronSecret,
+} from "../_shared/backend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,6 +21,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    requireCronSecret(req);
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -62,6 +68,15 @@ Deno.serve(async (req) => {
           session.device_ip,
         );
       }
+
+      await auditLog(supabase, {
+        user_id: router.user_id,
+        org_id: router.org_id,
+        router_id: router.id,
+        action: "session.expired",
+        status: "success",
+        message: `Expired access for ${session.phone}`,
+      });
     }
 
     const ids = expired.map((session) => session.id);
@@ -97,6 +112,15 @@ Deno.serve(async (req) => {
       if (!router) continue;
 
       await revokePppoeAccess(router as RouterRecord, account.username);
+
+      await auditLog(supabase, {
+        user_id: router.user_id,
+        org_id: router.org_id,
+        router_id: router.id,
+        action: "pppoe.expired",
+        status: "success",
+        message: `Suspended PPPoE user ${account.username}`,
+      });
     }
 
     if ((expiredPppoe || []).length > 0) {

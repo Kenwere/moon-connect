@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { auditLog } from "../_shared/backend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,8 +64,39 @@ Deno.serve(async (req) => {
       routerRecord = data;
     }
 
+    if (routerRecord?.org_id && routerRecord.org_id !== org_id) {
+      return new Response(JSON.stringify({ error: "Router does not belong to this ISP" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let resolvedPackage: Record<string, unknown> | null = null;
+    if (package_id) {
+      const { data } = await supabase
+        .from("packages")
+        .select("*")
+        .eq("id", package_id)
+        .eq("org_id", org_id)
+        .eq("active", true)
+        .single();
+      resolvedPackage = data;
+    }
+
+    if (!resolvedPackage) {
+      return new Response(JSON.stringify({ error: "Package not found for this ISP" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const method = payment_method || settings.default_payment_method || "intasend";
     const paymentId = crypto.randomUUID();
+    const resolvedAmount = Number(resolvedPackage.price || amount || 0);
+    const resolvedPackageName = String(resolvedPackage.name || package_name || "Package");
+    const resolvedDurationMinutes = Number(
+      resolvedPackage.duration_minutes || duration_minutes || 120,
+    );
     const expiresAt = new Date();
     if (billing_cycle === "yearly") {
       expiresAt.setFullYear(expiresAt.getFullYear() + 1);
@@ -76,7 +108,7 @@ Deno.serve(async (req) => {
       expiresAt.setDate(expiresAt.getDate() + 1);
     } else {
       expiresAt.setTime(
-        Date.now() + (duration_minutes || 120) * 60 * 1000,
+        Date.now() + resolvedDurationMinutes * 60 * 1000,
       );
     }
 
@@ -88,8 +120,8 @@ Deno.serve(async (req) => {
       pppoe_account_id: pppoe_account_id || null,
       router_id: (routerRecord?.id as string | undefined) || null,
       phone,
-      package_name,
-      amount,
+      package_name: resolvedPackageName,
+      amount: resolvedAmount,
       method,
       router_name: (routerRecord?.name as string | undefined) || null,
       device_ip: device_ip || null,
@@ -99,6 +131,7 @@ Deno.serve(async (req) => {
       status: "Pending",
       payment_context: {
         duration_minutes: duration_minutes || 120,
+        resolved_duration_minutes: resolvedDurationMinutes,
         router_token: router_token || null,
         billing_cycle: billing_cycle || null,
         pppoe_account_id: pppoe_account_id || null,
@@ -108,6 +141,22 @@ Deno.serve(async (req) => {
     if (paymentInsertError) {
       throw paymentInsertError;
     }
+
+    await auditLog(supabase, {
+      user_id: settings.user_id,
+      org_id,
+      router_id: (routerRecord?.id as string | undefined) || null,
+      payment_id: paymentId,
+      action: "payment.initiated",
+      status: "info",
+      message: `Initialized ${method} payment for ${resolvedPackageName}`,
+      meta: {
+        phone,
+        amount: resolvedAmount,
+        package_id,
+        router_token: router_token || null,
+      },
+    });
 
     let paymentResult: Record<string, unknown> = {};
 
@@ -119,7 +168,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          amount: Math.round(amount * 100),
+          amount: Math.round(resolvedAmount * 100),
           email: `${phone.replace(/[^0-9]/g, "")}@hotspot.local`,
           currency: "KES",
           callback_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/payment-webhook?provider=paystack`,
@@ -127,11 +176,11 @@ Deno.serve(async (req) => {
           metadata: {
             payment_id: paymentId,
             phone,
-            package_name,
+            package_name: resolvedPackageName,
             package_id,
             pppoe_account_id,
             org_id,
-            duration_minutes,
+            duration_minutes: resolvedDurationMinutes,
             billing_cycle,
             router_id: (routerRecord?.id as string | undefined) || null,
             mac_address: mac_address || null,
@@ -159,10 +208,10 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            amount,
+            amount: resolvedAmount,
             phone_number: phone,
             api_ref: paymentId,
-            narrative: `WiFi - ${package_name}`,
+            narrative: `WiFi - ${resolvedPackageName}`,
           }),
         },
       );
@@ -206,8 +255,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             id: paymentId,
             currency: "KES",
-            amount,
-            description: `WiFi - ${package_name}`,
+            amount: resolvedAmount,
+            description: `WiFi - ${resolvedPackageName}`,
             callback_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/payment-webhook?provider=pesapal`,
             billing_address: { phone_number: phone },
           }),
@@ -242,6 +291,23 @@ Deno.serve(async (req) => {
     if (paymentUpdateError) {
       throw paymentUpdateError;
     }
+
+    await auditLog(supabase, {
+      user_id: settings.user_id,
+      org_id,
+      router_id: (routerRecord?.id as string | undefined) || null,
+      payment_id: paymentId,
+      action: "payment.provider_initialized",
+      status: "success",
+      message: `Provider initialized for ${method}`,
+      meta: {
+        provider_reference:
+          paymentResult.reference ||
+          paymentResult.invoice_id ||
+          paymentResult.order_tracking_id ||
+          null,
+      },
+    });
 
     return new Response(JSON.stringify(paymentResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

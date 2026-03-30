@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.initiate-payment]
 verify_jwt = false
 
+[functions.redeem-voucher]
+verify_jwt = false
+
 [functions.payment-webhook]
 verify_jwt = false
 
@@ -16,7 +19,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.router-status]
-verify_jwt = false
+verify_jwt = true
 
 [functions.router-restart]
-verify_jwt = false
+verify_jwt = true
