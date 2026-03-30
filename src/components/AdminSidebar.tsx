@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/app" },
   { icon: Package, label: "Packages", path: "/packages" },
   { icon: Users, label: "Users", path: "/users" },
   { icon: Cable, label: "PPPoE", path: "/pppoe" },
