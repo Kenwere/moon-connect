@@ -31,6 +31,7 @@ export default function Routers() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [provisionServiceReady, setProvisionServiceReady] = useState<boolean | null>(null);
 
   const [form, setForm] = useState({
     name: "", location: "", ip_address: "192.168.88.1", api_port: 8728,
@@ -171,7 +172,29 @@ export default function Routers() {
     toast.success("moonconnect.rsc downloaded!");
   };
 
-  const openProvision = (router: RouterDevice) => { setSelectedRouter(router); setProvisionDialogOpen(true); setCopiedLink(false); setCopiedCmd(false); };
+  const checkProvisionService = async (token: string) => {
+    try {
+      const response = await fetch(getProvisionUrl(token), { method: "GET" });
+      setProvisionServiceReady(response.ok);
+      if (!response.ok) {
+        toast.error("Platform provisioning service is not deployed yet. Use the .rsc download for now.");
+      }
+    } catch {
+      setProvisionServiceReady(false);
+      toast.error("Provision service could not be reached. Use the .rsc download for now.");
+    }
+  };
+
+  const openProvision = (router: RouterDevice) => {
+    setSelectedRouter(router);
+    setProvisionDialogOpen(true);
+    setCopiedLink(false);
+    setCopiedCmd(false);
+    setProvisionServiceReady(null);
+    if (router.provision_token) {
+      void checkProvisionService(router.provision_token);
+    }
+  };
   const openDetail = (router: RouterDevice) => { setSelectedRouter(router); setDetailDialogOpen(true); };
 
   const copyToClipboard = async (text: string, type: "link" | "cmd") => {
@@ -239,9 +262,15 @@ export default function Routers() {
               <div>
                 <h4 className="text-sm font-semibold mb-2">Option 1: Auto-Provision via Terminal</h4>
                 <p className="text-xs text-muted-foreground mb-3">Paste in MikroTik Terminal to auto-download and run the setup script.</p>
+                {provisionServiceReady === false && (
+                  <div className="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+                    Auto-provision is unavailable because the backend provision service is not deployed on Supabase yet.
+                    The `.rsc` download below still works after this fix.
+                  </div>
+                )}
                 <div className="relative">
                   <pre className="bg-muted/50 border border-border rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all">{getMikroTikCommand(selectedRouter.provision_token)}</pre>
-                  <Button size="sm" variant="outline" className="absolute top-2 right-2" onClick={() => copyToClipboard(getMikroTikCommand(selectedRouter.provision_token!), "cmd")}>
+                  <Button size="sm" variant="outline" className="absolute top-2 right-2" disabled={provisionServiceReady === false} onClick={() => copyToClipboard(getMikroTikCommand(selectedRouter.provision_token!), "cmd")}>
                     {copiedCmd ? <Check className="w-3 h-3 mr-1 text-success" /> : <Copy className="w-3 h-3 mr-1" />} {copiedCmd ? "Copied!" : "Copy"}
                   </Button>
                 </div>

@@ -22,7 +22,7 @@ function generateMikroTikScript(
   const slug = routerName.toLowerCase().replace(/\s+/g, "-");
   const portalHost = new URL(portalUrl).hostname;
   const supabaseHost = new URL(supabaseUrl).hostname;
-  const loginHtml = `<html><head><meta http-equiv="refresh" content="0;url=${portalUrl}?router_token=${routerToken}&mac=$(mac)&ip=$(ip)&link-login=$(link-login-only)&link-orig=$(link-orig-esc)"></head><body>Redirecting...</body></html>`;
+  const loginHtml = `<html><head><meta http-equiv='refresh' content='0;url=${portalUrl}?router_token=${routerToken}&mac=$(mac)&ip=$(ip)&link-login=$(link-login-only)&link-orig=$(link-orig-esc)'></head><body>Redirecting...</body></html>`;
 
   let script = `# ============================================
 # MoonConnect - MikroTik Auto Setup Script
@@ -55,8 +55,7 @@ add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${dnsName} \
 add name=hotspot-${slug} interface=ether2 address-pool=hotspot-pool \\
   profile=hsprof-moonconnect disabled=no
 
-/file print file=hotspot/login.html
-/file set [find name="hotspot/login.html"] contents="${loginHtml}"
+/file set [find where name="hotspot/login.html"] contents="${loginHtml}"
 
 /ip hotspot walled-garden ip
 add dst-host=${portalHost} action=accept comment="MoonConnect Portal"
