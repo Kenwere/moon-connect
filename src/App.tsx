@@ -4,10 +4,12 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import SupabaseSetupNotice from "@/components/SupabaseSetupNotice";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import Dashboard from "./pages/Dashboard";
 import Packages from "./pages/Packages";
+import PPPoEPage from "./pages/PPPoE";
 import UsersPage from "./pages/UsersPage";
 import Payments from "./pages/Payments";
 import Vouchers from "./pages/Vouchers";
@@ -24,15 +26,21 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setLoading(false); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { setSession(session); });
     return () => subscription.unsubscribe();
   }, []);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div></div>;
+  if (!isSupabaseConfigured) return <SupabaseSetupNotice />;
   if (!session) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -50,6 +58,7 @@ const App = () => (
             <Route path="/portal" element={<CaptivePortal />} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/packages" element={<ProtectedRoute><Packages /></ProtectedRoute>} />
+            <Route path="/pppoe" element={<ProtectedRoute><PPPoEPage /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
             <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
             <Route path="/vouchers" element={<ProtectedRoute><Vouchers /></ProtectedRoute>} />

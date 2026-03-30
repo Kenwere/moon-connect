@@ -1,73 +1,65 @@
-# Welcome to your Lovable project
+# WiFi Billing System
 
-## Project info
+Multi-tenant hotspot billing frontend for ISPs, built with Vite, React, Tailwind, and Supabase.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Local setup
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+1. Install dependencies:
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+npm install
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Create your environment file:
 
-# Step 3: Install the necessary dependencies.
-npm i
+```sh
+copy .env.example .env
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+3. Add your Supabase project values to `.env`:
+
+```env
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-anon-key
+```
+
+4. Start the app:
+
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+If `.env` is missing, the app now shows a setup screen instead of a white screen.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Supabase setup
 
-**Use GitHub Codespaces**
+1. Create a new Supabase project.
+2. Open the SQL editor and run the files in `supabase/migrations` in timestamp order.
+3. In Supabase, copy:
+   - Project URL
+   - Publishable anon key
+4. Put those values in `.env`.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Go live
 
-## What technologies are used for this project?
+You can deploy this frontend to Vercel, Netlify, or any static host that supports Vite builds.
 
-This project is built with:
+### Required production environment variables
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```env
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_PUBLISHABLE_KEY=...
+```
 
-## How can I deploy this project?
+### Deploy steps
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+1. Push this repo to GitHub.
+2. Import it into Vercel or Netlify.
+3. Set the two `VITE_...` environment variables in the hosting dashboard.
+4. Run the production build command:
 
-## Can I connect a custom domain to my Lovable project?
+```sh
+npm run build
+```
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+5. Publish the generated `dist` output.

@@ -153,6 +153,176 @@ export type Database = {
           },
         ]
       }
+      pppoe_accounts: {
+        Row: {
+          bandwidth_profile: string | null
+          created_at: string
+          data_limit: string | null
+          expires_at: string | null
+          full_name: string
+          id: string
+          last_connected_at: string | null
+          mac_address: string | null
+          notes: string | null
+          org_id: string | null
+          package_id: string | null
+          password: string
+          phone: string | null
+          router_id: string | null
+          service_status: string
+          session_limit: number
+          speed_limit: string | null
+          static_ip: string | null
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          bandwidth_profile?: string | null
+          created_at?: string
+          data_limit?: string | null
+          expires_at?: string | null
+          full_name: string
+          id?: string
+          last_connected_at?: string | null
+          mac_address?: string | null
+          notes?: string | null
+          org_id?: string | null
+          package_id?: string | null
+          password: string
+          phone?: string | null
+          router_id?: string | null
+          service_status?: string
+          session_limit?: number
+          speed_limit?: string | null
+          static_ip?: string | null
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          bandwidth_profile?: string | null
+          created_at?: string
+          data_limit?: string | null
+          expires_at?: string | null
+          full_name?: string
+          id?: string
+          last_connected_at?: string | null
+          mac_address?: string | null
+          notes?: string | null
+          org_id?: string | null
+          package_id?: string | null
+          password?: string
+          phone?: string | null
+          router_id?: string | null
+          service_status?: string
+          session_limit?: number
+          speed_limit?: string | null
+          static_ip?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pppoe_accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pppoe_accounts_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pppoe_accounts_router_id_fkey"
+            columns: ["router_id"]
+            isOneToOne: false
+            referencedRelation: "routers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pppoe_sessions: {
+        Row: {
+          account_id: string
+          bytes_in: number
+          bytes_out: number
+          connected_at: string
+          created_at: string
+          disconnected_at: string | null
+          id: string
+          ip_address: string | null
+          mac_address: string | null
+          org_id: string | null
+          router_id: string | null
+          status: string
+          uptime_seconds: number
+          user_id: string
+          username: string
+        }
+        Insert: {
+          account_id: string
+          bytes_in?: number
+          bytes_out?: number
+          connected_at?: string
+          created_at?: string
+          disconnected_at?: string | null
+          id?: string
+          ip_address?: string | null
+          mac_address?: string | null
+          org_id?: string | null
+          router_id?: string | null
+          status?: string
+          uptime_seconds?: number
+          user_id: string
+          username: string
+        }
+        Update: {
+          account_id?: string
+          bytes_in?: number
+          bytes_out?: number
+          connected_at?: string
+          created_at?: string
+          disconnected_at?: string | null
+          id?: string
+          ip_address?: string | null
+          mac_address?: string | null
+          org_id?: string | null
+          router_id?: string | null
+          status?: string
+          uptime_seconds?: number
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pppoe_sessions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "pppoe_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pppoe_sessions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pppoe_sessions_router_id_fkey"
+            columns: ["router_id"]
+            isOneToOne: false
+            referencedRelation: "routers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

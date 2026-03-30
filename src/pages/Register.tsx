@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,10 @@ export default function Register() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSupabaseConfigured) {
+      toast.error("Add your Supabase keys to the .env file first.");
+      return;
+    }
     if (password !== confirmPassword) { toast.error("Passwords do not match"); return; }
     if (password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
     if (!ispName.trim()) { toast.error("ISP / Business name is required"); return; }
@@ -48,11 +52,17 @@ export default function Register() {
         </div>
 
         <form onSubmit={handleRegister} className="glass-card p-6 space-y-4">
+          {!isSupabaseConfigured && (
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
+              Supabase is not configured yet. Add `VITE_SUPABASE_URL` and
+              `VITE_SUPABASE_PUBLISHABLE_KEY` to `.env`.
+            </div>
+          )}
           <div>
             <Label htmlFor="ispName">ISP / Business Name</Label>
             <div className="relative mt-1.5">
               <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input id="ispName" placeholder="e.g. StarLink WiFi" className="pl-10" value={ispName} onChange={(e) => setIspName(e.target.value)} required />
+              <Input id="ispName" placeholder="e.g. StarLink WiFi" className="pl-10" value={ispName} onChange={(e) => setIspName(e.target.value)} required disabled={!isSupabaseConfigured} />
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Your subdomain: <span className="text-primary font-mono">{ispName ? ispName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') : 'your-isp'}.moonconnect.app</span>
@@ -62,31 +72,31 @@ export default function Register() {
             <Label htmlFor="fullName">Full Name</Label>
             <div className="relative mt-1.5">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input id="fullName" placeholder="John Doe" className="pl-10" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+              <Input id="fullName" placeholder="John Doe" className="pl-10" value={fullName} onChange={(e) => setFullName(e.target.value)} required disabled={!isSupabaseConfigured} />
             </div>
           </div>
           <div>
             <Label htmlFor="email">Email</Label>
             <div className="relative mt-1.5">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input id="email" type="email" placeholder="admin@example.com" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input id="email" type="email" placeholder="admin@example.com" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={!isSupabaseConfigured} />
             </div>
           </div>
           <div>
             <Label htmlFor="password">Password</Label>
             <div className="relative mt-1.5">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input id="password" type="password" placeholder="Minimum 6 characters" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input id="password" type="password" placeholder="Minimum 6 characters" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={!isSupabaseConfigured} />
             </div>
           </div>
           <div>
             <Label htmlFor="confirmPassword">Confirm Password</Label>
             <div className="relative mt-1.5">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input id="confirmPassword" type="password" placeholder="Re-enter password" className="pl-10" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+              <Input id="confirmPassword" type="password" placeholder="Re-enter password" className="pl-10" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required disabled={!isSupabaseConfigured} />
             </div>
           </div>
-          <Button type="submit" className="w-full bg-primary text-primary-foreground font-medium h-11" disabled={loading}>
+          <Button type="submit" className="w-full bg-primary text-primary-foreground font-medium h-11" disabled={loading || !isSupabaseConfigured}>
             {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating account...</> : "Create ISP Account"}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
