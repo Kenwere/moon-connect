@@ -62,8 +62,21 @@ const initialForm = {
   recurring_enabled: "yes",
   billing_cycle: "monthly",
   billing_amount: "",
-  next_billing_date: "",
   expires_at: "",
+};
+
+const addBillingPeriod = (cycle: string) => {
+  const next = new Date();
+  if (cycle === "yearly") {
+    next.setFullYear(next.getFullYear() + 1);
+  } else if (cycle === "weekly") {
+    next.setDate(next.getDate() + 7);
+  } else if (cycle === "daily") {
+    next.setDate(next.getDate() + 1);
+  } else {
+    next.setDate(next.getDate() + 30);
+  }
+  return next.toISOString();
 };
 
 export default function PPPoEPage() {
@@ -175,12 +188,14 @@ export default function PPPoEPage() {
       recurring_enabled: form.recurring_enabled === "yes",
       billing_cycle: form.billing_cycle,
       billing_amount: Number(form.billing_amount) || 0,
-      next_billing_date: form.next_billing_date
-        ? new Date(form.next_billing_date).toISOString()
-        : form.expires_at
+      next_billing_date:
+        form.recurring_enabled === "yes" ? addBillingPeriod(form.billing_cycle) : null,
+      expires_at:
+        form.expires_at
           ? new Date(form.expires_at).toISOString()
-          : null,
-      expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
+          : form.recurring_enabled === "yes"
+            ? addBillingPeriod(form.billing_cycle)
+            : null,
     });
 
     if (error) {
@@ -371,10 +386,6 @@ export default function PPPoEPage() {
               <div>
                 <Label>Billing Amount</Label>
                 <Input className="mt-1.5" type="number" min="0" step="0.01" value={form.billing_amount} onChange={(event) => setForm((current) => ({ ...current, billing_amount: event.target.value }))} placeholder="5000" />
-              </div>
-              <div>
-                <Label>Next Billing Date</Label>
-                <Input className="mt-1.5" type="datetime-local" value={form.next_billing_date} onChange={(event) => setForm((current) => ({ ...current, next_billing_date: event.target.value }))} />
               </div>
               <div>
                 <Label>Expiry Date</Label>

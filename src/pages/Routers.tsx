@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Router as RouterIcon, Settings, Wifi, WifiOff, Copy, Check, Link2, Download, RefreshCw, Trash2, MoreHorizontal, Eye } from "lucide-react";
+import { Plus, Router as RouterIcon, Settings, Wifi, WifiOff, Copy, Check, Link2, Download, RefreshCw, Trash2, MoreHorizontal, Eye, RotateCcw, Power } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -91,6 +91,68 @@ export default function Routers() {
       fetchRouters();
       if (selectedRouter?.id === routerId) setSelectedRouter({ ...selectedRouter, provision_token: newToken });
     }
+  };
+
+  const refreshRouterStatus = async (routerId: string) => {
+    const { data, error } = await supabase.functions.invoke("router-status", {
+      body: { router_id: routerId },
+    });
+
+    if (error) {
+      toast.error("Failed to check router status");
+      return;
+    }
+
+    setRouters((current) =>
+      current.map((router) =>
+        router.id === routerId
+          ? {
+              ...router,
+              status: data?.status || router.status,
+            }
+          : router,
+      ),
+    );
+
+    if (selectedRouter?.id === routerId) {
+      setSelectedRouter({
+        ...selectedRouter,
+        status: data?.status || selectedRouter.status,
+      });
+    }
+
+    toast.success(`Router is ${data?.status || "updated"}`);
+  };
+
+  const restartRouterDevice = async (routerId: string) => {
+    const { data, error } = await supabase.functions.invoke("router-restart", {
+      body: { router_id: routerId },
+    });
+
+    if (error) {
+      toast.error("Failed to restart router");
+      return;
+    }
+
+    setRouters((current) =>
+      current.map((router) =>
+        router.id === routerId
+          ? {
+              ...router,
+              status: data?.status || "Restarting",
+            }
+          : router,
+      ),
+    );
+
+    if (selectedRouter?.id === routerId) {
+      setSelectedRouter({
+        ...selectedRouter,
+        status: data?.status || "Restarting",
+      });
+    }
+
+    toast.success("Router restart command sent");
   };
 
   const downloadRsc = (router: RouterDevice) => {
@@ -191,6 +253,8 @@ export default function Routers() {
               </div>
               <div className="flex gap-2 pt-2 border-t border-border">
                 <Button variant="outline" size="sm" onClick={() => refreshToken(selectedRouter.id)}><RefreshCw className="w-4 h-4 mr-1" /> Refresh Link</Button>
+                <Button variant="outline" size="sm" onClick={() => refreshRouterStatus(selectedRouter.id)}><RotateCcw className="w-4 h-4 mr-1" /> Check Status</Button>
+                <Button variant="outline" size="sm" className="text-warning hover:bg-warning/10" onClick={() => restartRouterDevice(selectedRouter.id)}><Power className="w-4 h-4 mr-1" /> Restart</Button>
               </div>
             </div>
           )}
@@ -245,6 +309,12 @@ export default function Routers() {
                 <Button variant="outline" size="sm" onClick={() => { setDetailDialogOpen(false); openProvision(selectedRouter); }}>
                   <Link2 className="w-3 h-3 mr-1" /> Provision
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => refreshRouterStatus(selectedRouter.id)}>
+                  <RotateCcw className="w-3 h-3 mr-1" /> Status
+                </Button>
+                <Button variant="outline" size="sm" className="text-warning hover:bg-warning/10" onClick={() => restartRouterDevice(selectedRouter.id)}>
+                  <Power className="w-3 h-3 mr-1" /> Restart
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => downloadRsc(selectedRouter)}>
                   <Download className="w-3 h-3 mr-1" /> .rsc
                 </Button>
@@ -285,6 +355,8 @@ export default function Routers() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="glass-card border-border">
                     <DropdownMenuItem onClick={() => openDetail(r)}><Eye className="w-3.5 h-3.5 mr-2" /> View Details</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => refreshRouterStatus(r.id)}><RotateCcw className="w-3.5 h-3.5 mr-2" /> Check Status</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => restartRouterDevice(r.id)}><Power className="w-3.5 h-3.5 mr-2" /> Restart Router</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => openProvision(r)}><Link2 className="w-3.5 h-3.5 mr-2" /> Provision</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => downloadRsc(r)}><Download className="w-3.5 h-3.5 mr-2" /> Download .rsc</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => deleteRouter(r.id)} className="text-destructive"><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>
@@ -298,6 +370,7 @@ export default function Routers() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Active Users</span><span className="font-display font-bold text-primary">{r.active_users}</span></div>
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => refreshRouterStatus(r.id)}><RotateCcw className="w-3 h-3 mr-1" /> Status</Button>
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => openProvision(r)}><Link2 className="w-3 h-3 mr-1" /> Provision</Button>
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => openDetail(r)}><Eye className="w-3 h-3 mr-1" /> Details</Button>
               </div>

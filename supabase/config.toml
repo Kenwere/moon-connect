@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.router-health-snapshot]
 verify_jwt = false
+
+[functions.router-status]
+verify_jwt = false
+
+[functions.router-restart]
+verify_jwt = false

@@ -375,3 +375,10 @@ export async function getRouterHealth(
     };
   }
 }
+
+export async function restartRouter(router: RouterRecord) {
+  await routerFetch(router, "/system/reboot", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
