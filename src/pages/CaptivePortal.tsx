@@ -32,6 +32,9 @@ export default function CaptivePortal() {
   const [logoUrl, setLogoUrl] = useState("");
   const [theme, setThemeState] = useState<PortalTheme>(getTheme("classic"));
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [routerToken, setRouterToken] = useState<string | null>(null);
+  const [deviceIp, setDeviceIp] = useState<string | null>(null);
+  const [macAddress, setMacAddress] = useState<string | null>(null);
 
   const selectedPkg = packages.find(p => p.id === selected);
 
@@ -48,6 +51,14 @@ export default function CaptivePortal() {
     // Check URL param first (for testing), then subdomain
     const params = new URLSearchParams(window.location.search);
     const paramSub = params.get("org");
+    const paramRouterToken = params.get("router_token");
+    const paramDeviceIp = params.get("ip");
+    const paramMac = params.get("mac");
+
+    setRouterToken(paramRouterToken);
+    setDeviceIp(paramDeviceIp);
+    setMacAddress(paramMac);
+
     if (paramSub) {
       subdomain = paramSub;
     } else if (parts.length >= 3 && parts[0] !== "www") {
@@ -110,8 +121,12 @@ export default function CaptivePortal() {
           phone,
           package_name: selectedPkg.name,
           amount: selectedPkg.price,
+          package_id: selectedPkg.id,
           duration_minutes: selectedPkg.duration_minutes,
           org_id: orgId,
+          router_token: routerToken,
+          device_ip: deviceIp,
+          mac_address: macAddress,
         },
       });
 

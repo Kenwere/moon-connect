@@ -103,45 +103,75 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          billing_cycle: string | null
           created_at: string
+          device_ip: string | null
           id: string
           method: string
           org_id: string | null
+          package_id: string | null
           package_name: string
+          payment_context: Json
           phone: string
+          period_end: string | null
+          period_start: string | null
+          pppoe_account_id: string | null
+          provider_reference: string | null
+          router_id: string | null
           router_name: string | null
           session_expiry: string | null
           status: string
           transaction_id: string | null
           user_id: string
+          mac_address: string | null
         }
         Insert: {
           amount?: number
+          billing_cycle?: string | null
           created_at?: string
+          device_ip?: string | null
           id?: string
           method?: string
           org_id?: string | null
+          package_id?: string | null
           package_name: string
+          payment_context?: Json
           phone: string
+          period_end?: string | null
+          period_start?: string | null
+          pppoe_account_id?: string | null
+          provider_reference?: string | null
+          router_id?: string | null
           router_name?: string | null
           session_expiry?: string | null
           status?: string
           transaction_id?: string | null
           user_id: string
+          mac_address?: string | null
         }
         Update: {
           amount?: number
+          billing_cycle?: string | null
           created_at?: string
+          device_ip?: string | null
           id?: string
           method?: string
           org_id?: string | null
+          package_id?: string | null
           package_name?: string
+          payment_context?: Json
           phone?: string
+          period_end?: string | null
+          period_start?: string | null
+          pppoe_account_id?: string | null
+          provider_reference?: string | null
+          router_id?: string | null
           router_name?: string | null
           session_expiry?: string | null
           status?: string
           transaction_id?: string | null
           user_id?: string
+          mac_address?: string | null
         }
         Relationships: [
           {
@@ -151,23 +181,49 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "payments_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_pppoe_account_id_fkey"
+            columns: ["pppoe_account_id"]
+            isOneToOne: false
+            referencedRelation: "pppoe_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_router_id_fkey"
+            columns: ["router_id"]
+            isOneToOne: false
+            referencedRelation: "routers"
+            referencedColumns: ["id"]
+          },
         ]
       }
       pppoe_accounts: {
         Row: {
           bandwidth_profile: string | null
+          billing_amount: number | null
+          billing_cycle: string
           created_at: string
           data_limit: string | null
           expires_at: string | null
           full_name: string
           id: string
           last_connected_at: string | null
+          last_paid_at: string | null
           mac_address: string | null
+          next_billing_date: string | null
           notes: string | null
           org_id: string | null
           package_id: string | null
           password: string
           phone: string | null
+          recurring_enabled: boolean
           router_id: string | null
           service_status: string
           session_limit: number
@@ -179,18 +235,23 @@ export type Database = {
         }
         Insert: {
           bandwidth_profile?: string | null
+          billing_amount?: number | null
+          billing_cycle?: string
           created_at?: string
           data_limit?: string | null
           expires_at?: string | null
           full_name: string
           id?: string
           last_connected_at?: string | null
+          last_paid_at?: string | null
           mac_address?: string | null
+          next_billing_date?: string | null
           notes?: string | null
           org_id?: string | null
           package_id?: string | null
           password: string
           phone?: string | null
+          recurring_enabled?: boolean
           router_id?: string | null
           service_status?: string
           session_limit?: number
@@ -202,18 +263,23 @@ export type Database = {
         }
         Update: {
           bandwidth_profile?: string | null
+          billing_amount?: number | null
+          billing_cycle?: string
           created_at?: string
           data_limit?: string | null
           expires_at?: string | null
           full_name?: string
           id?: string
           last_connected_at?: string | null
+          last_paid_at?: string | null
           mac_address?: string | null
+          next_billing_date?: string | null
           notes?: string | null
           org_id?: string | null
           package_id?: string | null
           password?: string
           phone?: string | null
+          recurring_enabled?: boolean
           router_id?: string | null
           service_status?: string
           session_limit?: number
@@ -316,6 +382,63 @@ export type Database = {
           },
           {
             foreignKeyName: "pppoe_sessions_router_id_fkey"
+            columns: ["router_id"]
+            isOneToOne: false
+            referencedRelation: "routers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      router_health_samples: {
+        Row: {
+          created_at: string
+          downtime_seconds: number
+          id: string
+          is_online: boolean
+          org_id: string | null
+          recorded_at: string
+          router_id: string
+          router_name: string
+          sample_interval_seconds: number
+          uptime_seconds: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          downtime_seconds?: number
+          id?: string
+          is_online: boolean
+          org_id?: string | null
+          recorded_at?: string
+          router_id: string
+          router_name: string
+          sample_interval_seconds?: number
+          uptime_seconds?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          downtime_seconds?: number
+          id?: string
+          is_online?: boolean
+          org_id?: string | null
+          recorded_at?: string
+          router_id?: string
+          router_name?: string
+          sample_interval_seconds?: number
+          uptime_seconds?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "router_health_samples_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "router_health_samples_router_id_fkey"
             columns: ["router_id"]
             isOneToOne: false
             referencedRelation: "routers"

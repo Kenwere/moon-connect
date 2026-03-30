@@ -137,14 +137,24 @@ create table if not exists public.payments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   org_id uuid references public.organizations(id) on delete set null,
+  package_id uuid references public.packages(id) on delete set null,
+  router_id uuid references public.routers(id) on delete set null,
+  pppoe_account_id uuid references public.pppoe_accounts(id) on delete set null,
   phone text not null,
   package_name text not null,
   amount numeric not null default 0,
   method text not null default 'M-Pesa',
+  billing_cycle text,
+  period_start timestamptz,
+  period_end timestamptz,
   router_name text,
+  device_ip text,
+  mac_address text,
   session_expiry timestamptz,
   status text not null default 'Pending',
   transaction_id text,
+  provider_reference text,
+  payment_context jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -173,6 +183,9 @@ create table if not exists public.pppoe_accounts (
   username text not null,
   password text not null,
   service_status text not null default 'active',
+  recurring_enabled boolean not null default true,
+  billing_cycle text not null default 'monthly',
+  billing_amount numeric not null default 0,
   bandwidth_profile text,
   speed_limit text,
   data_limit text,
@@ -180,6 +193,8 @@ create table if not exists public.pppoe_accounts (
   static_ip text,
   mac_address text,
   notes text,
+  next_billing_date timestamptz,
+  last_paid_at timestamptz,
   last_connected_at timestamptz,
   expires_at timestamptz
 );
@@ -205,17 +220,36 @@ create table if not exists public.pppoe_sessions (
   status text not null default 'online'
 );
 
+create table if not exists public.router_health_samples (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  org_id uuid references public.organizations(id) on delete set null,
+  router_id uuid not null references public.routers(id) on delete cascade,
+  router_name text not null,
+  is_online boolean not null default false,
+  uptime_seconds integer not null default 0,
+  downtime_seconds integer not null default 0,
+  sample_interval_seconds integer not null default 300,
+  recorded_at timestamptz not null default now()
+);
+
 create index if not exists idx_sessions_user_id on public.sessions(user_id);
 create index if not exists idx_sessions_router_id on public.sessions(router_id);
 create index if not exists idx_sessions_status on public.sessions(status);
 create index if not exists idx_payments_user_id on public.payments(user_id);
 create index if not exists idx_payments_status on public.payments(status);
+create index if not exists idx_payments_router_id on public.payments(router_id);
+create index if not exists idx_payments_package_id on public.payments(package_id);
+create index if not exists idx_payments_pppoe_account_id on public.payments(pppoe_account_id);
 create index if not exists idx_vouchers_code on public.vouchers(code);
 create index if not exists idx_vouchers_status on public.vouchers(status);
 create index if not exists idx_packages_org_id on public.packages(org_id);
 create index if not exists idx_routers_org_id on public.routers(org_id);
 create index if not exists idx_pppoe_sessions_account_id on public.pppoe_sessions(account_id);
 create index if not exists idx_pppoe_sessions_org_id on public.pppoe_sessions(org_id);
+create index if not exists idx_router_health_samples_router_id on public.router_health_samples(router_id);
+create index if not exists idx_router_health_samples_recorded_at on public.router_health_samples(recorded_at);
 
 alter table public.profiles enable row level security;
 alter table public.user_roles enable row level security;
@@ -228,6 +262,7 @@ alter table public.payments enable row level security;
 alter table public.vouchers enable row level security;
 alter table public.pppoe_accounts enable row level security;
 alter table public.pppoe_sessions enable row level security;
+alter table public.router_health_samples enable row level security;
 
 create or replace function public.has_role(_user_id uuid, _role public.app_role)
 returns boolean
@@ -365,6 +400,12 @@ with check (auth.uid() = user_id);
 drop policy if exists "Users manage own pppoe sessions" on public.pppoe_sessions;
 create policy "Users manage own pppoe sessions"
 on public.pppoe_sessions for all to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users manage own router health samples" on public.router_health_samples;
+create policy "Users manage own router health samples"
+on public.router_health_samples for all to authenticated
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 

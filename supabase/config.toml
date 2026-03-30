@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.expire-sessions]
 verify_jwt = false
+
+[functions.router-health-snapshot]
+verify_jwt = false

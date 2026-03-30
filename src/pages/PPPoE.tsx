@@ -59,6 +59,10 @@ const initialForm = {
   session_limit: "1",
   static_ip: "",
   notes: "",
+  recurring_enabled: "yes",
+  billing_cycle: "monthly",
+  billing_amount: "",
+  next_billing_date: "",
   expires_at: "",
 };
 
@@ -126,6 +130,10 @@ export default function PPPoEPage() {
       speed_limit: selectedPackage?.speed_limit || current.speed_limit,
       data_limit: selectedPackage?.data_limit || current.data_limit,
       bandwidth_profile: selectedPackage?.name || current.bandwidth_profile,
+      billing_amount:
+        selectedPackage?.price != null
+          ? String(selectedPackage.price)
+          : current.billing_amount,
     }));
   };
 
@@ -164,6 +172,14 @@ export default function PPPoEPage() {
       session_limit: Number(form.session_limit) || 1,
       static_ip: form.static_ip || null,
       notes: form.notes || null,
+      recurring_enabled: form.recurring_enabled === "yes",
+      billing_cycle: form.billing_cycle,
+      billing_amount: Number(form.billing_amount) || 0,
+      next_billing_date: form.next_billing_date
+        ? new Date(form.next_billing_date).toISOString()
+        : form.expires_at
+          ? new Date(form.expires_at).toISOString()
+          : null,
       expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
     });
 
@@ -327,6 +343,40 @@ export default function PPPoEPage() {
                 <Input className="mt-1.5" value={form.static_ip} onChange={(event) => setForm((current) => ({ ...current, static_ip: event.target.value }))} placeholder="172.16.10.10" />
               </div>
               <div>
+                <Label>Recurring Billing</Label>
+                <Select value={form.recurring_enabled} onValueChange={(value) => setForm((current) => ({ ...current, recurring_enabled: value }))}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder="Choose recurring mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="yes">Recurring monthly</SelectItem>
+                    <SelectItem value="no">One-time billing</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Billing Cycle</Label>
+                <Select value={form.billing_cycle} onValueChange={(value) => setForm((current) => ({ ...current, billing_cycle: value }))}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder="Select cycle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Billing Amount</Label>
+                <Input className="mt-1.5" type="number" min="0" step="0.01" value={form.billing_amount} onChange={(event) => setForm((current) => ({ ...current, billing_amount: event.target.value }))} placeholder="5000" />
+              </div>
+              <div>
+                <Label>Next Billing Date</Label>
+                <Input className="mt-1.5" type="datetime-local" value={form.next_billing_date} onChange={(event) => setForm((current) => ({ ...current, next_billing_date: event.target.value }))} />
+              </div>
+              <div>
                 <Label>Expiry Date</Label>
                 <Input className="mt-1.5" type="datetime-local" value={form.expires_at} onChange={(event) => setForm((current) => ({ ...current, expires_at: event.target.value }))} />
               </div>
@@ -387,6 +437,7 @@ export default function PPPoEPage() {
                     <th className="px-4 py-3 font-medium text-muted-foreground">Subscriber</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground">Router</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground">Package</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground">Billing</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground">Speed</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground">Status</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground">Actions</th>
@@ -410,6 +461,17 @@ export default function PPPoEPage() {
                           <div>
                             <p>{assignedPackage?.name || "Custom"}</p>
                             <p className="text-xs text-muted-foreground">{assignedPackage?.duration_label || account.bandwidth_profile || "Manual profile"}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          <div>
+                            KES {Number(account.billing_amount || assignedPackage?.price || 0).toLocaleString()}
+                          </div>
+                          <div className="text-muted-foreground">
+                            {account.recurring_enabled ? account.billing_cycle : "one-time"}
+                          </div>
+                          <div className="text-muted-foreground">
+                            Due {account.next_billing_date ? new Date(account.next_billing_date).toLocaleDateString() : "not set"}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-xs">

@@ -95,9 +95,11 @@ export default function Routers() {
 
   const downloadRsc = (router: RouterDevice) => {
     const portalUrl = window.location.origin + "/portal";
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const script = generateMikroTikScript({
+      routerToken: router.provision_token || "",
       routerName: router.name, hotspotAddress: router.hotspot_address || "10.5.50.1/24",
-      dnsName: router.dns_name || "hotspot.local", portalUrl, disableSharing: router.disable_sharing,
+      dnsName: router.dns_name || "hotspot.local", portalUrl, supabaseUrl, disableSharing: router.disable_sharing,
       deviceTracking: router.device_tracking, bandwidthControl: router.bandwidth_control, sessionLogging: router.session_logging,
     });
     const blob = new Blob([script], { type: "text/plain" });
