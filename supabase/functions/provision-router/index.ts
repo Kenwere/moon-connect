@@ -79,14 +79,14 @@ add chain=forward action=accept in-interface=ether2 comment="Allow hotspot traff
 
   if (router.disable_sharing) {
     script += `
-/ip hotspot profile set hsprof-moonconnect shared-users=1
+/ip hotspot profile set [find where name="hsprof-moonconnect"] shared-users=1
 `;
   }
 
   if (router.device_tracking) {
     script += `
-/ip hotspot profile set hsprof-moonconnect login-by=http-chap,http-pap,cookie,mac-cookie
-/ip hotspot set hotspot-${slug} addresses-per-mac=1
+/ip hotspot profile set [find where name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie
+/ip hotspot set [find where name="hotspot-${slug}"] addresses-per-mac=1
 `;
   }
 
