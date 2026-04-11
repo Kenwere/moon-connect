@@ -64,7 +64,7 @@ add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${dnsName} \
 add name=${hotspotName} interface=ether2 address-pool=hotspot-pool \\
   profile=hsprof-moonconnect disabled=no
 
-/file set [find where name="hotspot/login.html"] contents="${loginHtml}"
+/file set [find name="hotspot/login.html"] contents="${loginHtml}"
 
 /ip hotspot walled-garden ip
 add dst-host=${portalHost} action=accept comment="MoonConnect Portal"
@@ -85,10 +85,10 @@ add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Al
 add chain=forward action=accept connection-state=established,related comment="Allow established"
 add chain=forward action=accept in-interface=ether2 comment="Allow hotspot traffic"
 ${disableSharing ? `
-/ip hotspot profile set [find where name="hsprof-moonconnect"] shared-users=1` : ""}
+/ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1` : ""}
 ${deviceTracking ? `
-/ip hotspot profile set [find where name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie
-/ip hotspot set [find where name="${hotspotName}"] addresses-per-mac=1` : ""}
+/ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie
+/ip hotspot set [find name="${hotspotName}"] addresses-per-mac=1` : ""}
 ${bandwidthControl ? `
 /queue type
 add name=hotspot-default kind=pcq pcq-rate=0 pcq-limit=50 pcq-classifier=dst-address
