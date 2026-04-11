@@ -56,7 +56,8 @@ function buildBootstrapScript(functionUrl: string) {
 
 :do {
     :put "Downloading MoonConnect configuration...";
-    /tool fetch url="\${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc;
+    :local configUrl "${functionUrl}&mode=config";
+    /tool fetch url=\$configUrl mode=https dst-path=moonconnect-config.rsc;
     :delay 3s;
 
     :if ([:len [/file find name="moonconnect-config.rsc"]] = 0) do={
