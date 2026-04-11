@@ -31,7 +31,8 @@ export function generateMikroTikScript(options: {
   const hotspotName = `hotspot-${routerName.toLowerCase().replace(/\s+/g, "-")}`;
   const portalHost = new URL(portalUrl).hostname;
   const supabaseHost = new URL(supabaseUrl).hostname;
-  const loginHtml = `<html><head><meta http-equiv='refresh' content='0;url=${portalUrl}?router_token=${routerToken}&mac=$(mac)&ip=$(ip)&link-login=$(link-login-only)&link-orig=$(link-orig-esc)'></head><body>Redirecting...</body></html>`;
+  const loginUrl = `${portalUrl}?router_token=${routerToken}&amp;mac=\\$(mac)&amp;ip=\\$(ip)&amp;link-login=\\$(link-login-only)&amp;link-orig=\\$(link-orig-esc)`;
+  const loginHtml = `<html><head><meta http-equiv='refresh' content='0;url=${loginUrl}'></head><body>Redirecting...</body></html>`;
 
   return `# ============================================
 # MoonConnect - MikroTik Auto Setup Script
