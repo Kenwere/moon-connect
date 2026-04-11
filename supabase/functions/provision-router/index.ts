@@ -154,9 +154,11 @@ Deno.serve(async (req) => {
 
   const rootDomain = Deno.env.get("APP_ROOT_DOMAIN");
   const publicAppUrl = Deno.env.get("PUBLIC_APP_URL");
-  let portalUrl = publicAppUrl
-    ? `${publicAppUrl.replace(/\/$/, "")}/portal`
-    : "https://moonconnect.app/portal";
+  const baseAppUrl = (publicAppUrl || "https://moonconnect.app").replace(/\/$/, "");
+  let portalUrl = `${baseAppUrl}/portal`;
+
+  const appendOrgParam = (url: string, orgSlug: string) =>
+    `${url}${url.includes("?") ? "&" : "?"}org=${orgSlug}`;
 
   if (router.org_id) {
     const { data: org } = await supabase
@@ -165,10 +167,13 @@ Deno.serve(async (req) => {
       .eq("id", router.org_id)
       .single();
 
-    if (org?.subdomain && rootDomain) {
-      portalUrl = `https://${org.subdomain}.${rootDomain}/portal`;
-    } else if (org?.subdomain && publicAppUrl) {
-      portalUrl = `${publicAppUrl.replace(/\/$/, "")}/portal?org=${org.subdomain}`;
+    if (org?.subdomain) {
+      const slug = String(org.subdomain);
+      if (rootDomain) {
+        portalUrl = `https://${slug}.${rootDomain}/portal`;
+      } else {
+        portalUrl = appendOrgParam(`${baseAppUrl}/portal`, slug);
+      }
     }
   }
 

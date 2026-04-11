@@ -12,6 +12,7 @@ import {
   Loader2,
   Lock,
   Mail,
+  Copy,
   User,
   Wifi,
 } from "lucide-react";
@@ -32,6 +33,7 @@ export default function Register() {
     subdomain: string;
     loginUrl: string;
   } | null>(null);
+  const [copiedField, setCopiedField] = useState<"subdomain" | "login" | null>(null);
 
   useEffect(() => {
     if (!subdomain && ispName) {
@@ -134,32 +136,56 @@ export default function Register() {
     }
   };
 
+  const handleCopy = async (value: string, message: string, field: "subdomain" | "login") => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(message);
+      setCopiedField(field);
+      setTimeout(() => {
+        setCopiedField((current) => (current === field ? null : current));
+      }, 2000);
+    } catch {
+      toast.error("Clipboard access failed");
+    }
+  };
+
   if (successState) {
     return (
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_30%),linear-gradient(180deg,_hsl(var(--background)),_hsl(220_24%_8%))] px-4 py-10">
+      <div className="min-h-screen bg-slate-950 px-4 py-10 text-white">
         <div className="mx-auto max-w-xl">
-          <div className="glass-card border-border p-8 text-center">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-success/15">
-              <BadgeCheck className="h-8 w-8 text-success" />
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-500/15 text-emerald-400">
+              <BadgeCheck className="h-8 w-8" />
             </div>
-            <h1 className="font-display text-3xl font-bold text-foreground">
+            <h1 className="font-display text-3xl font-semibold text-white">
               ISP account created
             </h1>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Your tenant login address is ready. Share it with your ISP admin
-              team and use it to sign in.
+            <p className="mt-3 text-sm text-slate-300">
+              Your tenant login address is ready. Copy the details below so you
+              can return to this workspace later.
             </p>
 
-            <div className="mt-6 rounded-2xl border border-border bg-muted/30 p-5 text-left">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                Your subdomain
-              </p>
-              <p className="mt-2 font-mono text-lg text-primary">
-                {successState.subdomain}
-              </p>
-              <p className="mt-3 text-xs text-muted-foreground break-all">
-                Login URL: {successState.loginUrl}
-              </p>
+            <div className="mt-6 space-y-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-5 text-left">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  Tenant subdomain
+                </p>
+                <p className="mt-2 font-mono text-lg text-white">
+                  {successState.subdomain}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Use this name exactly as shown when provisioning routers or
+                  sharing login links.
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  Login URL
+                </p>
+                <p className="mt-1 break-all text-sm text-primary">
+                  {successState.loginUrl}
+                </p>
+              </div>
             </div>
 
             <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -173,6 +199,35 @@ export default function Register() {
                 <Link to="/">Back to landing page</Link>
               </Button>
             </div>
+
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+                onClick={() =>
+                  handleCopy(
+                    successState.subdomain,
+                    "Subdomain copied",
+                    "subdomain",
+                  )
+                }
+              >
+                <Copy className="h-3 w-3" />
+                {copiedField === "subdomain" ? "Copied" : "Copy subdomain"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+                onClick={() =>
+                  handleCopy(successState.loginUrl, "Login URL copied", "login")
+                }
+              >
+                <Copy className="h-3 w-3" />
+                {copiedField === "login" ? "Copied" : "Copy login URL"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -180,9 +235,9 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.12),_transparent_24%),linear-gradient(180deg,_hsl(var(--background)),_hsl(220_24%_8%))] px-4 py-8">
+    <div className="min-h-screen bg-slate-950 px-4 py-8 text-white">
       <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[0.95fr,1.05fr]">
-        <div className="rounded-[2rem] border border-border/60 bg-card/60 p-8 backdrop-blur">
+        <div className="rounded-[2rem] border border-slate-800 bg-slate-900/70 p-8 shadow-lg">
           <div className="mb-6 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-primary text-primary-foreground">
               <Wifi className="h-6 w-6" />
@@ -198,11 +253,12 @@ export default function Register() {
           </div>
 
           <h1 className="font-display text-4xl font-bold text-white">
-            Register your ISP and get your own subdomain.
+            Register your ISP and lock down your tenant space.
           </h1>
           <p className="mt-4 text-sm leading-7 text-slate-300">
-            Every ISP gets a tenant login URL, branded portal access, separate
-            packages, routers, subscribers, payments, and settings.
+            Every tenant receives a branded login URL, captive portal, router
+            provisioning links, and its own workspace for packages, payments,
+            and people.
           </p>
 
           <div className="mt-8 space-y-4">
@@ -227,7 +283,7 @@ export default function Register() {
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-border/60 bg-card/70 p-6 backdrop-blur sm:p-8">
+          <div className="rounded-[2rem] border border-slate-800 bg-slate-900/60 p-6 shadow-lg sm:p-8">
           <div className="mb-6">
             <h2 className="font-display text-2xl font-bold text-foreground">
               ISP Registration
