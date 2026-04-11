@@ -47,7 +47,7 @@ export function generateMikroTikScript(options: {
         :error "MoonConnect configuration download failed - file not found after fetch.";
     };
 
-    :put "Config file size:" [:len [/file get \${configName} contents]];
+    :put ("Config file size: " . [:len [/file get \${configName} contents]]);
     :put "Applying MoonConnect configuration...";
     /import \${configName};
     /file remove [find name=\${configName}];

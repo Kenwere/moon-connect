@@ -66,7 +66,7 @@ function buildBootstrapScript(functionUrl: string) {
         :error "MoonConnect configuration download failed - file not found after fetch.";
     };
 
-    :put "Config file size:" [:len [/file get moonconnect-config.rsc contents]];
+    :put ("Config file size: " . [:len [/file get moonconnect-config.rsc contents]]);
     :put "Applying MoonConnect configuration...";
     /import moonconnect-config.rsc;
     /file remove [find name="moonconnect-config.rsc"];
