@@ -59,10 +59,6 @@ function safeRouterSlug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "router";
 }
 
-function assetUrl(functionUrl: string, assetPath: string) {
-  return `${functionUrl}&mode=asset&asset=${encodeURIComponent(assetPath)}`;
-}
-
 function buildConfigScript(options: {
   functionUrl: string;
   portalUrl: string;
@@ -115,12 +111,17 @@ function buildConfigScript(options: {
     "xml/login.html",
   ];
 
-  const assetCommands = assetPaths
-    .map((assetPath) => {
-      const destination = `hotspot/${assetPath}`;
-      return `/tool fetch url="${assetUrl(functionUrl, assetPath)}" mode=https dst-path="${destination}"`;
-    })
-    .join("\n");
+  const assetSetupScript = `# Asset download script for ${routerName}
+${assetPaths
+  .map((assetPath) => {
+    const destination = `hotspot/${assetPath}`;
+    const assetUrl = `${functionUrl}&mode=asset&asset=${encodeURIComponent(assetPath)}`;
+    return `:put "Downloading ${assetPath}..."
+/tool fetch url='${assetUrl}' mode=https dst-path='${destination}'`;
+  })
+  .join("\n")}
+:put "All assets downloaded successfully"
+`;
 
   return `# ============================================
 # MoonConnect - MikroTik Configuration
@@ -135,6 +136,14 @@ function buildConfigScript(options: {
 :if ([:len [/file find name="hotspot/img"]] = 0) do={ /file make-dir hotspot/img }
 :if ([:len [/file find name="hotspot/xml"]] = 0) do={ /file make-dir hotspot/xml }
 
+# Download and run asset setup script
+:local assetScript "${assetSetupScript}"
+/file print file=moonconnect-assets.rsc
+/file set [find name="moonconnect-assets.rsc"] contents=\$assetScript
+/import moonconnect-assets.rsc
+/file remove [find name="moonconnect-assets.rsc"]
+
+# Continue with hotspot configuration
 :do { /queue simple remove [find name="hotspot-queue"] } on-error={}
 :do { /queue type remove [find name="hotspot-default"] } on-error={}
 :do { /ip hotspot remove [find name="${hotspotName}"] } on-error={}
@@ -147,10 +156,10 @@ function buildConfigScript(options: {
 /ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
 
 :put "Assigning hotspot address..."
-:do { /ip address add address=${hotspotAddress} interface=ether2 comment="MoonConnect Interface" } on-error={}
+/ip address add address=${hotspotAddress} interface=ether2 comment="MoonConnect Interface"
 
 :put "Configuring DHCP..."
-:do { /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase} } on-error={}
+/ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
 /ip dhcp-server add name=hotspot-dhcp interface=ether2 address-pool=hotspot-pool lease-time=1h disabled=no
 
 :put "Configuring DNS..."
@@ -163,23 +172,20 @@ function buildConfigScript(options: {
 :put "Creating hotspot server..."
 /ip hotspot add name=${hotspotName} interface=ether2 address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
 
-:put "Downloading hotspot files..."
-${assetCommands}
-
 :put "Configuring walled garden..."
-:do { /ip hotspot walled-garden ip add dst-host=${portalHost} action=accept comment="MoonConnect Portal" } on-error={}
-:do { /ip hotspot walled-garden ip add dst-host=${supabaseHost} action=accept comment="MoonConnect Supabase" } on-error={}
-:do { /ip hotspot walled-garden ip add dst-host=checkout.paystack.com action=accept comment="Paystack Checkout" } on-error={}
-:do { /ip hotspot walled-garden ip add dst-host=api.paystack.co action=accept comment="Paystack API" } on-error={}
-:do { /ip hotspot walled-garden ip add dst-host=payment.intasend.com action=accept comment="IntaSend" } on-error={}
-:do { /ip hotspot walled-garden ip add dst-host=pay.pesapal.com action=accept comment="PesaPal" } on-error={}
-:do { /ip hotspot walled-garden add dst-host=${portalHost} path=/* action=allow comment="MoonConnect Portal Page" } on-error={}
+/ip hotspot walled-garden ip add dst-host=${portalHost} action=accept comment="MoonConnect Portal"
+/ip hotspot walled-garden ip add dst-host=${supabaseHost} action=accept comment="MoonConnect Supabase"
+/ip hotspot walled-garden ip add dst-host=checkout.paystack.com action=accept comment="Paystack Checkout"
+/ip hotspot walled-garden ip add dst-host=api.paystack.co action=accept comment="Paystack API"
+/ip hotspot walled-garden ip add dst-host=payment.intasend.com action=accept comment="IntaSend"
+/ip hotspot walled-garden ip add dst-host=pay.pesapal.com action=accept comment="PesaPal"
+/ip hotspot walled-garden add dst-host=${portalHost} path=/* action=allow comment="MoonConnect Portal Page"
 
 :put "Configuring NAT and filters..."
-:do { /ip firewall nat add chain=srcnat out-interface=ether1 action=masquerade comment="MoonConnect NAT" } on-error={}
-:do { /ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management" } on-error={}
-:do { /ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established" } on-error={}
-:do { /ip firewall filter add chain=forward action=accept in-interface=ether2 comment="Allow hotspot traffic" } on-error={}
+/ip firewall nat add chain=srcnat out-interface=ether1 action=masquerade comment="MoonConnect NAT"
+/ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management"
+/ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established"
+/ip firewall filter add chain=forward action=accept in-interface=ether2 comment="Allow hotspot traffic"
 ${disableSharing ? `/ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1` : ""}
 ${deviceTracking ? `/ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie
 /ip hotspot set [find name="${hotspotName}"] addresses-per-mac=1` : ""}
@@ -188,7 +194,7 @@ ${bandwidthControl ? `/queue type add name=hotspot-default kind=pcq pcq-rate=0 p
 ${sessionLogging ? `/system logging add topics=hotspot action=memory
 /system logging add topics=hotspot action=echo` : ""}
 
-:do { /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M } on-error={}
+/ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M
 :put "MoonConnect hotspot setup complete with hosted portal access to ${portalHost}"
 `;
 }
