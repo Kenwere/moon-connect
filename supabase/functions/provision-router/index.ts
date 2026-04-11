@@ -396,39 +396,40 @@ function assetResponse(options: {
   routerToken: string;
 }) {
   const { asset, businessName, routerName, portalUrl, routerToken } = options;
+  const decodedAsset = decodeURIComponent(asset);
   const portalHome = `${portalUrl}?router_token=${routerToken}`;
 
-  if (asset === "login.html") {
+  if (decodedAsset === "login.html") {
     return new Response(
       loginHtml({ businessName, routerName, portalUrl, routerToken }),
       { headers: htmlHeaders },
     );
   }
 
-  if (asset === "api.json") {
+  if (decodedAsset === "api.json") {
     return new Response(apiJson({ businessName, routerName, portalUrl }), {
       headers: jsonHeaders,
     });
   }
 
-  if (asset === "css/style.css") {
+  if (decodedAsset === "css/style.css") {
     return new Response(hotspotStyleCss(), { headers: textHeaders });
   }
 
-  if (asset === "md5.js") {
+  if (decodedAsset === "md5.js") {
     return new Response(md5Js(), { headers: textHeaders });
   }
 
-  if (asset === "img/user.svg") {
+  if (decodedAsset === "img/user.svg") {
     return new Response(userSvg(), { headers: svgHeaders });
   }
 
-  if (asset === "img/password.svg") {
+  if (decodedAsset === "img/password.svg") {
     return new Response(passwordSvg(), { headers: svgHeaders });
   }
 
   const xmlRedirect = `<?xml version="1.0" encoding="UTF-8"?><response><redirect>${portalHome}</redirect></response>`;
-  if (asset === "xml/alogin.html" || asset === "xml/error.html" || asset === "xml/flogout.html" || asset === "xml/login.html") {
+  if (decodedAsset === "xml/alogin.html" || decodedAsset === "xml/error.html" || decodedAsset === "xml/flogout.html" || decodedAsset === "xml/login.html") {
     return new Response(xmlRedirect, { headers: textHeaders });
   }
 
@@ -459,7 +460,7 @@ function assetResponse(options: {
     },
   };
 
-  if (pages[asset]) {
+  if (pages[decodedAsset]) {
     return new Response(
       redirectHtml({
         title: pages[asset].title,
