@@ -56,8 +56,7 @@ function buildBootstrapScript(functionUrl: string) {
 
 :do {
     :put "Downloading MoonConnect configuration...";
-    :local configUrl "${functionUrl}&mode=config";
-    /tool fetch url=\$configUrl mode=https dst-path=moonconnect-config.rsc;
+    /tool fetch url="${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc;
     :delay 3s;
 
     :if ([:len [/file find name="moonconnect-config.rsc"]] = 0) do={
@@ -66,9 +65,16 @@ function buildBootstrapScript(functionUrl: string) {
         :error "MoonConnect configuration download failed - file not found after fetch.";
     };
 
-    :put ("Config file size: " . [:len [/file get moonconnect-config.rsc contents]]);
+    :local configSize [:len [/file get [find name="moonconnect-config.rsc"] contents]];
+    :put ("Config file size: " . \$configSize);
     :put "Applying MoonConnect configuration...";
-    /import moonconnect-config.rsc;
+    :do {
+        /import moonconnect-config.rsc;
+    } on-error={
+        :put "MoonConnect config import failed:";
+        :put \$error;
+        :error \$error;
+    };
     /file remove [find name="moonconnect-config.rsc"];
     :put "MoonConnect configuration completed successfully.";
 } on-error={
@@ -141,7 +147,7 @@ function buildConfigScript(options: {
       const destination = `hotspot/${assetPath}`;
       const assetUrl = `${functionUrl}&mode=asset&asset=${encodeURIComponent(assetPath)}`;
       return `:put "Downloading ${assetPath}..."
-/tool fetch url='${assetUrl}' mode=https dst-path='${destination}'`;
+:do { /tool fetch url='${assetUrl}' mode=https dst-path='${destination}' } on-error={ :put "Failed to download ${assetPath}" }`;
     })
     .join("\n");
 
@@ -153,10 +159,10 @@ function buildConfigScript(options: {
 
 :put "Preparing MoonConnect hotspot setup..."
 
-:if ([:len [/file find name="hotspot"]] = 0) do={ /file make-dir hotspot }
-:if ([:len [/file find name="hotspot/css"]] = 0) do={ /file make-dir hotspot/css }
-:if ([:len [/file find name="hotspot/img"]] = 0) do={ /file make-dir hotspot/img }
-:if ([:len [/file find name="hotspot/xml"]] = 0) do={ /file make-dir hotspot/xml }
+:do { /file make-dir hotspot } on-error={}
+:do { /file make-dir hotspot/css } on-error={}
+:do { /file make-dir hotspot/img } on-error={}
+:do { /file make-dir hotspot/xml } on-error={}
 
 :put "Downloading hotspot files..."
 ${assetCommands}
