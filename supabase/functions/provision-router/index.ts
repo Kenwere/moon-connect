@@ -136,17 +136,14 @@ function buildConfigScript(options: {
     "xml/login.html",
   ];
 
-  const assetSetupScript = `# Asset download script for ${routerName}
-${assetPaths
-  .map((assetPath) => {
-    const destination = `hotspot/${assetPath}`;
-    const assetUrl = `${functionUrl}&mode=asset&asset=${encodeURIComponent(assetPath)}`;
-    return `:put "Downloading ${assetPath}..."
+  const assetCommands = assetPaths
+    .map((assetPath) => {
+      const destination = `hotspot/${assetPath}`;
+      const assetUrl = `${functionUrl}&mode=asset&asset=${encodeURIComponent(assetPath)}`;
+      return `:put "Downloading ${assetPath}..."
 /tool fetch url='${assetUrl}' mode=https dst-path='${destination}'`;
-  })
-  .join("\n")}
-:put "All assets downloaded successfully"
-`;
+    })
+    .join("\n");
 
   return `# ============================================
 # MoonConnect - MikroTik Configuration
@@ -161,12 +158,9 @@ ${assetPaths
 :if ([:len [/file find name="hotspot/img"]] = 0) do={ /file make-dir hotspot/img }
 :if ([:len [/file find name="hotspot/xml"]] = 0) do={ /file make-dir hotspot/xml }
 
-# Download and run asset setup script
-:local assetScript "${assetSetupScript}"
-/file print file=moonconnect-assets.rsc
-/file set [find name="moonconnect-assets.rsc"] contents=\$assetScript
-/import moonconnect-assets.rsc
-/file remove [find name="moonconnect-assets.rsc"]
+:put "Downloading hotspot files..."
+${assetCommands}
+:put "All assets downloaded successfully"
 
 # Continue with hotspot configuration
 :do { /queue simple remove [find name="hotspot-queue"] } on-error={}
