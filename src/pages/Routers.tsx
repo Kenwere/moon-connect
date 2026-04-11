@@ -32,6 +32,7 @@ export default function Routers() {
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [loading, setLoading] = useState(true);
   const [provisionServiceReady, setProvisionServiceReady] = useState<boolean | null>(null);
+  const [provisionServiceMessage, setProvisionServiceMessage] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: "", location: "", ip_address: "192.168.88.1", api_port: 8728,
@@ -175,12 +176,31 @@ export default function Routers() {
   const checkProvisionService = async (token: string) => {
     try {
       const response = await fetch(getProvisionUrl(token), { method: "GET" });
-      setProvisionServiceReady(response.ok);
-      if (!response.ok) {
-        toast.error("Platform provisioning service is not deployed yet. Use the .rsc download for now.");
+      if (response.ok) {
+        setProvisionServiceReady(true);
+        setProvisionServiceMessage(null);
+        return;
       }
+
+      setProvisionServiceReady(false);
+
+      if (response.status === 401) {
+        const message =
+          "Provision function is live but still protected by Supabase auth. Redeploy `provision-router` with `verify_jwt = false` so MikroTik can fetch it directly.";
+        setProvisionServiceMessage(message);
+        toast.error(message);
+        return;
+      }
+
+      const message =
+        "Provision function could not be reached from this deployment. Use the .rsc download until the Supabase function is redeployed.";
+      setProvisionServiceMessage(message);
+      toast.error(message);
     } catch {
       setProvisionServiceReady(false);
+      setProvisionServiceMessage(
+        "Provision function could not be reached from this deployment. Use the .rsc download until the Supabase function is redeployed.",
+      );
       toast.error("Provision service could not be reached. Use the .rsc download for now.");
     }
   };
@@ -191,6 +211,7 @@ export default function Routers() {
     setCopiedLink(false);
     setCopiedCmd(false);
     setProvisionServiceReady(null);
+    setProvisionServiceMessage(null);
     if (router.provision_token) {
       void checkProvisionService(router.provision_token);
     }
@@ -264,8 +285,7 @@ export default function Routers() {
                 <p className="text-xs text-muted-foreground mb-3">Paste in MikroTik Terminal to auto-download and run the setup script.</p>
                 {provisionServiceReady === false && (
                   <div className="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
-                    Auto-provision is unavailable because the backend provision service is not deployed on Supabase yet.
-                    The `.rsc` download below still works after this fix.
+                    {provisionServiceMessage || "Auto-provision is unavailable right now."}
                   </div>
                 )}
                 <div className="relative">

@@ -50,6 +50,14 @@ For each router:
 - do not expose router management broadly to the public internet
 - make sure the router is reachable from Supabase Edge Functions
 
+Before testing auto-provision, redeploy the public provisioning endpoint so MikroTik can download it without a JWT:
+
+```sh
+supabase functions deploy provision-router --project-ref kcsjdagvvbbxnerkxnqv --no-verify-jwt
+```
+
+If `APP_ROOT_DOMAIN` is not set in Supabase secrets, the generated script will fall back to `/portal?org=<subdomain>` links instead of wildcard subdomains.
+
 ### 5. Testing you still need to perform
 
 - real Paystack payment success
