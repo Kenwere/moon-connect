@@ -51,7 +51,7 @@ export function generateMikroTikScript(options: {
     :put ("Config file size: " . \$configSize);
     :put "Applying MoonConnect configuration...";
     :do {
-        /import \${configName};
+        /import file-name=\${configName} verbose=yes;
     } on-error={
         :put "MoonConnect config import failed:";
         :put \$error;

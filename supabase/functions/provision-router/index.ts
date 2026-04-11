@@ -69,7 +69,7 @@ function buildBootstrapScript(functionUrl: string) {
     :put ("Config file size: " . \$configSize);
     :put "Applying MoonConnect configuration...";
     :do {
-        /import moonconnect-config.rsc;
+        /import file-name=moonconnect-config.rsc verbose=yes;
     } on-error={
         :put "MoonConnect config import failed:";
         :put \$error;
@@ -159,6 +159,20 @@ function buildConfigScript(options: {
 
 :put "Preparing MoonConnect hotspot setup..."
 
+:local lanInterface ""
+:if ([:len [/interface find where name="bridge"]] > 0) do={ :set lanInterface "bridge" }
+:if ((\$lanInterface = "") && ([:len [/interface find where name="bridge1"]] > 0)) do={ :set lanInterface "bridge1" }
+:if ((\$lanInterface = "") && ([:len [/interface find where name="ether2"]] > 0)) do={ :set lanInterface "ether2" }
+:if ((\$lanInterface = "") && ([:len [/interface find where name="LAN"]] > 0)) do={ :set lanInterface "LAN" }
+:if ((\$lanInterface = "") && ([:len [/interface find where default-name="ether2"]] > 0)) do={
+  :set lanInterface [/interface get [/interface find where default-name="ether2"] name]
+}
+:if (\$lanInterface = "") do={
+  :error "Could not detect LAN interface. Rename your customer interface to bridge, bridge1, LAN, or ether2 and retry."
+}
+
+:put ("Using LAN interface: " . \$lanInterface)
+
 :do { /file make-dir hotspot } on-error={}
 :do { /file make-dir hotspot/css } on-error={}
 :do { /file make-dir hotspot/img } on-error={}
@@ -181,11 +195,11 @@ ${assetCommands}
 /ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
 
 :put "Assigning hotspot address..."
-/ip address add address=${hotspotAddress} interface=ether2 comment="MoonConnect Interface"
+/ip address add address=${hotspotAddress} interface=\$lanInterface comment="MoonConnect Interface"
 
 :put "Configuring DHCP..."
 /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
-/ip dhcp-server add name=hotspot-dhcp interface=ether2 address-pool=hotspot-pool lease-time=1h disabled=no
+/ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no
 
 :put "Configuring DNS..."
 /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
@@ -195,7 +209,7 @@ ${assetCommands}
 /ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${dnsName} html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
 
 :put "Creating hotspot server..."
-/ip hotspot add name=${hotspotName} interface=ether2 address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
+/ip hotspot add name=${hotspotName} interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
 
 :put "Configuring walled garden..."
 /ip hotspot walled-garden ip add dst-host=${portalHost} action=accept comment="MoonConnect Portal"
@@ -207,10 +221,10 @@ ${assetCommands}
 /ip hotspot walled-garden add dst-host=${portalHost} path=/* action=allow comment="MoonConnect Portal Page"
 
 :put "Configuring NAT and filters..."
-/ip firewall nat add chain=srcnat out-interface=ether1 action=masquerade comment="MoonConnect NAT"
+/ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect NAT"
 /ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management"
 /ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established"
-/ip firewall filter add chain=forward action=accept in-interface=ether2 comment="Allow hotspot traffic"
+/ip firewall filter add chain=forward action=accept in-interface=\$lanInterface comment="Allow hotspot traffic"
 ${disableSharing ? `/ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1` : ""}
 ${deviceTracking ? `/ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie
 /ip hotspot set [find name="${hotspotName}"] addresses-per-mac=1` : ""}
