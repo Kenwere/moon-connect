@@ -38,20 +38,25 @@ export function generateMikroTikScript(options: {
 
 :do {
     :put "Downloading MoonConnect configuration...";
-    /tool fetch url='\${provisionUrl}&mode=config' mode=https dst-path=\${configName};
-    :delay 2s;
+    /tool fetch url="\${provisionUrl}&mode=config" mode=https dst-path=\${configName};
+    :delay 3s;
 
     :if ([:len [/file find name=\${configName}]] = 0) do={
-        :error "MoonConnect configuration download failed.";
-    }
+        :put "Config file not found. Checking fetch status...";
+        /file print;
+        :error "MoonConnect configuration download failed - file not found after fetch.";
+    };
 
+    :put "Config file size:" [:len [/file get \${configName} contents]];
     :put "Applying MoonConnect configuration...";
     /import \${configName};
     /file remove [find name=\${configName}];
     :put "MoonConnect configuration completed successfully.";
 } on-error={
-    :put "MoonConnect provisioning failed:";
+    :put "MoonConnect provisioning failed with error:";
     :put \$error;
+    :put "Current directory contents:";
+    /file print;
 }
 
 # Script file loaded and executed successfully

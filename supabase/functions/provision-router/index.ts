@@ -31,26 +31,50 @@ function buildBootstrapScript(functionUrl: string) {
 # MoonConnect - MikroTik Bootstrap Script
 # ============================================
 
+:global version [/system package update get installed-version];
+:local majorVersion 0;
+:local minorVersion 0;
+:local dotPos [:find \$version "."];
+
+:if ([:len \$dotPos] > 0) do={
+    :set majorVersion [:tonum [:pick \$version 0 \$dotPos]];
+    :local remaining [:pick \$version (\$dotPos + 1) [:len \$version]];
+    :set dotPos [:find \$remaining "."];
+    :if ([:len \$dotPos] > 0) do={
+        :set minorVersion [:tonum [:pick \$remaining 0 \$dotPos]];
+    }
+}
+
+:if (\$majorVersion < 6 || (\$majorVersion = 6 && \$minorVersion < 49)) do={
+    :put "RouterOS version 6.49 or higher is required.";
+    :error "RouterOS version 6.49 or higher is required.";
+}
+
 :if ([/ping 8.8.8.8 count=3] = 0) do={
     :error "No internet connection. Please check your router WAN and DNS.";
 }
 
 :do {
     :put "Downloading MoonConnect configuration...";
-    /tool fetch url="${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc;
-    :delay 2s;
+    /tool fetch url="\${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc;
+    :delay 3s;
 
     :if ([:len [/file find name="moonconnect-config.rsc"]] = 0) do={
-        :error "MoonConnect configuration download failed.";
-    }
+        :put "Config file not found. Checking fetch status...";
+        /file print;
+        :error "MoonConnect configuration download failed - file not found after fetch.";
+    };
 
+    :put "Config file size:" [:len [/file get moonconnect-config.rsc contents]];
     :put "Applying MoonConnect configuration...";
     /import moonconnect-config.rsc;
     /file remove [find name="moonconnect-config.rsc"];
     :put "MoonConnect configuration completed successfully.";
 } on-error={
-    :put "MoonConnect provisioning failed:";
-    :put $error;
+    :put "MoonConnect provisioning failed with error:";
+    :put \$error;
+    :put "Current directory contents:";
+    /file print;
 }
 `;
 }
@@ -513,7 +537,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  const functionUrl = `${url.origin}${url.pathname}?token=${token}`;
+  const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/provision-router?token=${token}`;
 
   if (mode === "asset" && requestedAsset) {
     return assetResponse({
