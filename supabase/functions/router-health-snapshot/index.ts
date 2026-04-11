@@ -63,6 +63,8 @@ Deno.serve(async (req) => {
         .from("routers")
         .update({
           status: snapshot.isOnline ? "Online" : "Offline",
+          active_users: snapshot.activeUsers,
+          model: snapshot.model || router.name,
         })
         .eq("id", router.id);
 
@@ -76,6 +78,8 @@ Deno.serve(async (req) => {
         meta: {
           sample_interval_seconds: sampleIntervalSeconds,
           uptime_seconds: snapshot.uptimeSeconds,
+          cpu_load: snapshot.cpuLoad,
+          active_users: snapshot.activeUsers,
         },
       });
     }

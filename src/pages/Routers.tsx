@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,75 @@ import { toast } from "sonner";
 import { generateMikroTikScript } from "@/lib/mikrotik-script";
 
 interface RouterDevice {
-  id: string; name: string; location: string; ip_address: string; api_port: number;
-  username: string; model: string; status: string; active_users: number;
-  payment_destination: string; disable_sharing: boolean; device_tracking: boolean;
-  bandwidth_control: boolean; session_logging: boolean; dns_name: string | null;
-  hotspot_address: string | null; provision_token: string | null; org_id: string | null;
-  connection_type?: string; created_at?: string; password?: string;
+  id: string;
+  name: string;
+  location: string;
+  ip_address: string;
+  api_port: number;
+  username: string;
+  model: string;
+  status: string;
+  active_users: number;
+  payment_destination: string;
+  disable_sharing: boolean;
+  device_tracking: boolean;
+  bandwidth_control: boolean;
+  session_logging: boolean;
+  dns_name: string | null;
+  hotspot_address: string | null;
+  provision_token: string | null;
+  org_id: string | null;
+  connection_type?: string;
+  created_at?: string;
+  password?: string;
+  cpu_load?: number;
+  free_memory?: number;
+  total_memory?: number;
+  hotspot_active_users?: number;
+  pppoe_active_users?: number;
+  uptime_seconds?: number;
+  uptime_24h?: number;
+  downtime_24h?: number;
+  availability_24h?: number;
+  board_name?: string;
+  version?: string;
+  last_seen_at?: string;
+}
+
+const emptyForm = {
+  name: "",
+  location: "",
+  ip_address: "192.168.88.1",
+  api_port: 8728,
+  username: "admin",
+  password: "",
+  dns_name: "hotspot.local",
+  hotspot_address: "10.5.50.1/24",
+  payment_destination: "Till",
+  connection_type: "hotspot",
+  disable_sharing: false,
+  device_tracking: true,
+  bandwidth_control: true,
+  session_logging: true,
+};
+
+function formatDuration(seconds?: number) {
+  if (!seconds) return "0m";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function formatPercent(value?: number) {
+  return value === undefined ? "N/A" : `${value.toFixed(1)}%`;
+}
+
+function formatMemory(bytes?: number) {
+  if (!bytes) return "N/A";
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function Routers() {
@@ -33,23 +96,46 @@ export default function Routers() {
   const [loading, setLoading] = useState(true);
   const [provisionServiceReady, setProvisionServiceReady] = useState<boolean | null>(null);
   const [provisionServiceMessage, setProvisionServiceMessage] = useState<string | null>(null);
-
-  const [form, setForm] = useState({
-    name: "", location: "", ip_address: "192.168.88.1", api_port: 8728,
-    username: "admin", password: "", dns_name: "hotspot.local",
-    hotspot_address: "10.5.50.1/24", payment_destination: "Till",
-    connection_type: "hotspot",
-    disable_sharing: false, device_tracking: true, bandwidth_control: true, session_logging: true,
-  });
+  const [form, setForm] = useState(emptyForm);
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
-  useEffect(() => { fetchRouters(); }, []);
+  useEffect(() => {
+    void fetchRouters();
+  }, []);
+
+  const getProvisionUrl = (token: string) =>
+    `${supabaseUrl}/functions/v1/provision-router?token=${token}`;
+
+  const getMikroTikCommand = (token: string) =>
+    `/tool fetch url="${getProvisionUrl(token)}" mode=https dst-path=moonconnect.rsc; :delay 2s; /import moonconnect.rsc;`;
+
+  const mergeRouterStatus = (
+    router: RouterDevice,
+    data: Record<string, unknown>,
+  ): RouterDevice => ({
+    ...router,
+    status: String(data.status || router.status),
+    active_users: Number(data.active_users ?? router.active_users ?? 0),
+    model: String(data.model || router.model || ""),
+    cpu_load: Number(data.cpu_load ?? router.cpu_load ?? 0),
+    free_memory: Number(data.free_memory ?? router.free_memory ?? 0),
+    total_memory: Number(data.total_memory ?? router.total_memory ?? 0),
+    hotspot_active_users: Number(data.hotspot_active_users ?? router.hotspot_active_users ?? 0),
+    pppoe_active_users: Number(data.pppoe_active_users ?? router.pppoe_active_users ?? 0),
+    uptime_seconds: Number(data.uptime_seconds ?? router.uptime_seconds ?? 0),
+    uptime_24h: Number(data.uptime_24h ?? router.uptime_24h ?? 0),
+    downtime_24h: Number(data.downtime_24h ?? router.downtime_24h ?? 0),
+    availability_24h: Number(data.availability_24h ?? router.availability_24h ?? 0),
+    board_name: String(data.board_name || router.board_name || ""),
+    version: String(data.version || router.version || ""),
+    last_seen_at: String(data.last_seen_at || router.last_seen_at || ""),
+  });
 
   const fetchRouters = async () => {
     const { data, error } = await supabase.from("routers").select("*").order("created_at", { ascending: false });
     if (error) toast.error("Failed to load routers");
-    else setRouters((data as any[]) || []);
+    else setRouters((data as RouterDevice[]) || []);
     setLoading(false);
   };
 
@@ -59,38 +145,48 @@ export default function Routers() {
     const { data: orgs } = await supabase.from("organizations").select("id").eq("owner_id", user.id).limit(1);
     const orgId = orgs?.[0]?.id || null;
     const { error } = await supabase.from("routers").insert({
-      user_id: user.id, org_id: orgId, name: form.name, location: form.location,
-      ip_address: form.ip_address, api_port: form.api_port, username: form.username,
-      password: form.password, dns_name: form.dns_name, hotspot_address: form.hotspot_address,
-      payment_destination: form.payment_destination, connection_type: form.connection_type,
-      disable_sharing: form.disable_sharing, device_tracking: form.device_tracking,
-      bandwidth_control: form.bandwidth_control, session_logging: form.session_logging,
-    } as any);
+      user_id: user.id,
+      org_id: orgId,
+      name: form.name,
+      location: form.location,
+      ip_address: form.ip_address,
+      api_port: form.api_port,
+      username: form.username,
+      password: form.password,
+      dns_name: form.dns_name,
+      hotspot_address: form.hotspot_address,
+      payment_destination: form.payment_destination,
+      connection_type: form.connection_type,
+      disable_sharing: form.disable_sharing,
+      device_tracking: form.device_tracking,
+      bandwidth_control: form.bandwidth_control,
+      session_logging: form.session_logging,
+    } as RouterDevice);
     if (error) toast.error("Failed to add router");
     else {
       toast.success("Router added!");
       setDialogOpen(false);
-      fetchRouters();
-      setForm({ name: "", location: "", ip_address: "192.168.88.1", api_port: 8728, username: "admin", password: "", dns_name: "hotspot.local", hotspot_address: "10.5.50.1/24", payment_destination: "Till", connection_type: "hotspot", disable_sharing: false, device_tracking: true, bandwidth_control: true, session_logging: true });
+      void fetchRouters();
+      setForm(emptyForm);
     }
   };
 
   const deleteRouter = async (id: string) => {
     const { error } = await supabase.from("routers").delete().eq("id", id);
     if (error) toast.error("Failed to delete router");
-    else { toast.success("Router deleted"); fetchRouters(); }
+    else {
+      toast.success("Router deleted");
+      void fetchRouters();
+    }
   };
 
-  const getProvisionUrl = (token: string) => `${supabaseUrl}/functions/v1/provision-router?token=${token}`;
-  const getMikroTikCommand = (token: string) => `/tool fetch url="${getProvisionUrl(token)}" mode=https dst-path=moonconnect.rsc\n/import moonconnect.rsc`;
-
   const refreshToken = async (routerId: string) => {
-    const newToken = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-    const { error } = await supabase.from("routers").update({ provision_token: newToken } as any).eq("id", routerId);
+    const newToken = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+    const { error } = await supabase.from("routers").update({ provision_token: newToken } as RouterDevice).eq("id", routerId);
     if (error) toast.error("Failed to refresh link");
     else {
       toast.success("Provision link refreshed!");
-      fetchRouters();
+      void fetchRouters();
       if (selectedRouter?.id === routerId) setSelectedRouter({ ...selectedRouter, provision_token: newToken });
     }
   };
@@ -99,30 +195,22 @@ export default function Routers() {
     const { data, error } = await supabase.functions.invoke("router-status", {
       body: { router_id: routerId },
     });
-
     if (error) {
       toast.error("Failed to check router status");
       return;
     }
-
     setRouters((current) =>
       current.map((router) =>
         router.id === routerId
-          ? {
-              ...router,
-              status: data?.status || router.status,
-            }
+          ? mergeRouterStatus(router, (data || {}) as Record<string, unknown>)
           : router,
       ),
     );
-
     if (selectedRouter?.id === routerId) {
-      setSelectedRouter({
-        ...selectedRouter,
-        status: data?.status || selectedRouter.status,
-      });
+      setSelectedRouter(
+        mergeRouterStatus(selectedRouter, (data || {}) as Record<string, unknown>),
+      );
     }
-
     toast.success(`Router is ${data?.status || "updated"}`);
   };
 
@@ -130,45 +218,36 @@ export default function Routers() {
     const { data, error } = await supabase.functions.invoke("router-restart", {
       body: { router_id: routerId },
     });
-
     if (error) {
       toast.error("Failed to restart router");
       return;
     }
-
     setRouters((current) =>
       current.map((router) =>
         router.id === routerId
-          ? {
-              ...router,
-              status: data?.status || "Restarting",
-            }
+          ? { ...router, status: String(data?.status || "Restarting") }
           : router,
       ),
     );
-
     if (selectedRouter?.id === routerId) {
       setSelectedRouter({
         ...selectedRouter,
-        status: data?.status || "Restarting",
+        status: String(data?.status || "Restarting"),
       });
     }
-
     toast.success("Router restart command sent");
   };
 
   const downloadRsc = (router: RouterDevice) => {
-    const portalUrl = window.location.origin + "/portal";
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const script = generateMikroTikScript({
-      routerToken: router.provision_token || "",
-      routerName: router.name, hotspotAddress: router.hotspot_address || "10.5.50.1/24",
-      dnsName: router.dns_name || "hotspot.local", portalUrl, supabaseUrl, disableSharing: router.disable_sharing,
-      deviceTracking: router.device_tracking, bandwidthControl: router.bandwidth_control, sessionLogging: router.session_logging,
+      provisionUrl: getProvisionUrl(router.provision_token || ""),
     });
     const blob = new Blob([script], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "moonconnect.rsc"; a.click();
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "moonconnect.rsc";
+    anchor.click();
     URL.revokeObjectURL(url);
     toast.success("moonconnect.rsc downloaded!");
   };
@@ -181,9 +260,7 @@ export default function Routers() {
         setProvisionServiceMessage(null);
         return;
       }
-
       setProvisionServiceReady(false);
-
       if (response.status === 401) {
         const message =
           "Provision function is live but still protected by Supabase auth. Redeploy `provision-router` with `verify_jwt = false` so MikroTik can fetch it directly.";
@@ -191,7 +268,6 @@ export default function Routers() {
         toast.error(message);
         return;
       }
-
       const message =
         "Provision function could not be reached from this deployment. Use the .rsc download until the Supabase function is redeployed.";
       setProvisionServiceMessage(message);
@@ -212,16 +288,23 @@ export default function Routers() {
     setCopiedCmd(false);
     setProvisionServiceReady(null);
     setProvisionServiceMessage(null);
-    if (router.provision_token) {
-      void checkProvisionService(router.provision_token);
-    }
+    if (router.provision_token) void checkProvisionService(router.provision_token);
   };
-  const openDetail = (router: RouterDevice) => { setSelectedRouter(router); setDetailDialogOpen(true); };
+
+  const openDetail = (router: RouterDevice) => {
+    setSelectedRouter(router);
+    setDetailDialogOpen(true);
+  };
 
   const copyToClipboard = async (text: string, type: "link" | "cmd") => {
     await navigator.clipboard.writeText(text);
-    if (type === "link") { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 3000); }
-    else { setCopiedCmd(true); setTimeout(() => setCopiedCmd(false), 3000); }
+    if (type === "link") {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    } else {
+      setCopiedCmd(true);
+      setTimeout(() => setCopiedCmd(false), 3000);
+    }
     toast.success("Copied to clipboard!");
   };
 
@@ -272,17 +355,16 @@ export default function Routers() {
         </Dialog>
       </PageHeader>
 
-      {/* Provision Dialog */}
       <Dialog open={provisionDialogOpen} onOpenChange={setProvisionDialogOpen}>
         <DialogContent className="glass-card border-border max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display flex items-center gap-2"><Link2 className="w-5 h-5 text-primary" /> Provision — {selectedRouter?.name}</DialogTitle>
+            <DialogTitle className="font-display flex items-center gap-2"><Link2 className="w-5 h-5 text-primary" /> Provision - {selectedRouter?.name}</DialogTitle>
           </DialogHeader>
           {selectedRouter?.provision_token && (
             <div className="space-y-5 mt-2">
               <div>
                 <h4 className="text-sm font-semibold mb-2">Option 1: Auto-Provision via Terminal</h4>
-                <p className="text-xs text-muted-foreground mb-3">Paste in MikroTik Terminal to auto-download and run the setup script.</p>
+                <p className="text-xs text-muted-foreground mb-3">Paste in MikroTik Terminal to download the MoonConnect bootstrap script, then let it pull the full config and hotspot files.</p>
                 {provisionServiceReady === false && (
                   <div className="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
                     {provisionServiceMessage || "Auto-provision is unavailable right now."}
@@ -297,7 +379,7 @@ export default function Routers() {
               </div>
               <div>
                 <h4 className="text-sm font-semibold mb-2">Option 2: Download .rsc File</h4>
-                <p className="text-xs text-muted-foreground mb-3">Upload to MikroTik Files, then run: <code className="text-primary">/import moonconnect.rsc</code></p>
+                <p className="text-xs text-muted-foreground mb-3">Upload the bootstrap `.rsc` to MikroTik Files, then run: <code className="text-primary">/import moonconnect.rsc</code></p>
                 <Button variant="outline" size="sm" onClick={() => downloadRsc(selectedRouter)}><Download className="w-4 h-4 mr-2" /> Download moonconnect.rsc</Button>
               </div>
               <div className="flex gap-2 pt-2 border-t border-border">
@@ -310,66 +392,38 @@ export default function Routers() {
         </DialogContent>
       </Dialog>
 
-      {/* Detail Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="glass-card border-border max-w-lg">
+        <DialogContent className="glass-card border-border max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="font-display flex items-center gap-2">
-              <RouterIcon className="w-5 h-5 text-primary" /> {selectedRouter?.name}
-            </DialogTitle>
+            <DialogTitle className="font-display flex items-center gap-2"><RouterIcon className="w-5 h-5 text-primary" /> {selectedRouter?.name}</DialogTitle>
           </DialogHeader>
           {selectedRouter && (
             <div className="space-y-4 mt-2">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <p className={`font-medium ${selectedRouter.status === "Online" ? "text-success" : "text-destructive"}`}>{selectedRouter.status}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">Type</p>
-                  <p className="font-medium capitalize">{selectedRouter.connection_type || "hotspot"}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">IP Address</p>
-                  <p className="font-mono text-xs">{selectedRouter.ip_address}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">API Port</p>
-                  <p className="font-mono text-xs">{selectedRouter.api_port}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">Model</p>
-                  <p>{selectedRouter.model}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">Active Users</p>
-                  <p className="font-display font-bold text-primary">{selectedRouter.active_users}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">Location</p>
-                  <p>{selectedRouter.location || "—"}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">DNS Name</p>
-                  <p className="font-mono text-xs">{selectedRouter.dns_name || "—"}</p>
-                </div>
+              <div className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-3">
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">Status</p><p className={`font-medium ${selectedRouter.status === "Online" ? "text-success" : "text-destructive"}`}>{selectedRouter.status}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">Type</p><p className="font-medium capitalize">{selectedRouter.connection_type || "hotspot"}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">IP Address</p><p className="font-mono text-xs">{selectedRouter.ip_address}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">API Port</p><p className="font-mono text-xs">{selectedRouter.api_port}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">Model</p><p>{selectedRouter.model}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">Active Users</p><p className="font-display font-bold text-primary">{selectedRouter.active_users}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">Location</p><p>{selectedRouter.location || "-"}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">DNS Name</p><p className="font-mono text-xs">{selectedRouter.dns_name || "-"}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">CPU Load</p><p className="font-medium">{selectedRouter.cpu_load ?? 0}%</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">Current Uptime</p><p className="font-medium">{formatDuration(selectedRouter.uptime_seconds)}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">24h Availability</p><p className="font-medium">{formatPercent(selectedRouter.availability_24h)}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">24h Downtime</p><p className="font-medium">{formatDuration(selectedRouter.downtime_24h)}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">Hotspot Users</p><p className="font-medium">{selectedRouter.hotspot_active_users ?? 0}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">PPPoE Users</p><p className="font-medium">{selectedRouter.pppoe_active_users ?? 0}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">Memory</p><p className="font-medium">{formatMemory(selectedRouter.free_memory)} free / {formatMemory(selectedRouter.total_memory)}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3"><p className="text-xs text-muted-foreground">Version</p><p className="font-medium">{selectedRouter.version || selectedRouter.board_name || "-"}</p></div>
+                <div className="bg-muted/30 rounded-lg p-3 lg:col-span-3"><p className="text-xs text-muted-foreground">Last Checked</p><p className="font-medium">{selectedRouter.last_seen_at ? new Date(selectedRouter.last_seen_at).toLocaleString() : "Run Status to fetch live metrics"}</p></div>
               </div>
               <div className="flex gap-2 pt-3 border-t border-border">
-                <Button variant="outline" size="sm" onClick={() => { setDetailDialogOpen(false); openProvision(selectedRouter); }}>
-                  <Link2 className="w-3 h-3 mr-1" /> Provision
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => refreshRouterStatus(selectedRouter.id)}>
-                  <RotateCcw className="w-3 h-3 mr-1" /> Status
-                </Button>
-                <Button variant="outline" size="sm" className="text-warning hover:bg-warning/10" onClick={() => restartRouterDevice(selectedRouter.id)}>
-                  <Power className="w-3 h-3 mr-1" /> Restart
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => downloadRsc(selectedRouter)}>
-                  <Download className="w-3 h-3 mr-1" /> .rsc
-                </Button>
-                <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => { deleteRouter(selectedRouter.id); setDetailDialogOpen(false); }}>
-                  <Trash2 className="w-3 h-3 mr-1" /> Delete
-                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setDetailDialogOpen(false); openProvision(selectedRouter); }}><Link2 className="w-3 h-3 mr-1" /> Provision</Button>
+                <Button variant="outline" size="sm" onClick={() => refreshRouterStatus(selectedRouter.id)}><RotateCcw className="w-3 h-3 mr-1" /> Status</Button>
+                <Button variant="outline" size="sm" className="text-warning hover:bg-warning/10" onClick={() => restartRouterDevice(selectedRouter.id)}><Power className="w-3 h-3 mr-1" /> Restart</Button>
+                <Button variant="outline" size="sm" onClick={() => downloadRsc(selectedRouter)}><Download className="w-3 h-3 mr-1" /> .rsc</Button>
+                <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => { void deleteRouter(selectedRouter.id); setDetailDialogOpen(false); }}><Trash2 className="w-3 h-3 mr-1" /> Delete</Button>
               </div>
             </div>
           )}
@@ -408,15 +462,16 @@ export default function Routers() {
                     <DropdownMenuItem onClick={() => restartRouterDevice(r.id)}><Power className="w-3.5 h-3.5 mr-2" /> Restart Router</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => openProvision(r)}><Link2 className="w-3.5 h-3.5 mr-2" /> Provision</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => downloadRsc(r)}><Download className="w-3.5 h-3.5 mr-2" /> Download .rsc</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => deleteRouter(r.id)} className="text-destructive"><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void deleteRouter(r.id)} className="text-destructive"><Trash2 className="w-3.5 h-3.5 mr-2" /> Delete</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
               <div className="space-y-2 text-sm mb-4">
                 <div className="flex justify-between"><span className="text-muted-foreground">Status</span><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.status === "Online" ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}>{r.status}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize text-xs">{(r as any).connection_type || "hotspot"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize text-xs">{r.connection_type || "hotspot"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">IP</span><span className="font-mono text-xs">{r.ip_address}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Active Users</span><span className="font-display font-bold text-primary">{r.active_users}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">CPU</span><span className="text-xs">{r.cpu_load ?? 0}%</span></div>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => refreshRouterStatus(r.id)}><RotateCcw className="w-3 h-3 mr-1" /> Status</Button>

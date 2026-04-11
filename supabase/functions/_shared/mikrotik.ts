@@ -35,6 +35,16 @@ interface PppoeAccessParams {
 export interface RouterHealthSnapshot {
   isOnline: boolean;
   uptimeSeconds: number;
+  cpuLoad: number;
+  freeMemory: number;
+  totalMemory: number;
+  activeHotspotUsers: number;
+  activePppoeUsers: number;
+  activeUsers: number;
+  model: string;
+  boardName: string;
+  version: string;
+  lastSeenAt: string;
 }
 
 function getRestConnection(router: RouterRecord) {
@@ -372,22 +382,64 @@ export async function getRouterHealth(
   router: RouterRecord,
 ): Promise<RouterHealthSnapshot> {
   try {
-    const resource = await routerFetch<unknown>(router, "/system/resource");
+    const [resource, hotspotUsers, pppoeUsers, routerboard] = await Promise.all([
+      routerFetch<unknown>(router, "/system/resource"),
+      listItems(router, "/ip/hotspot/active").catch(() => []),
+      listItems(router, "/ppp/active").catch(() => []),
+      routerFetch<unknown>(router, "/system/routerboard").catch(() => ({})),
+    ]);
+
     const resourceItems = toItemArray(resource);
     const resourceRow = resourceItems[0] || {};
+    const routerboardItems = toItemArray(routerboard);
+    const routerboardRow = routerboardItems[0] || {};
     const uptimeSeconds = parseDurationToSeconds(
       String(resourceRow.uptime || ""),
     );
+    const cpuLoad = Number(resourceRow["cpu-load"] || 0);
+    const freeMemory = Number(resourceRow["free-memory"] || 0);
+    const totalMemory = Number(resourceRow["total-memory"] || 0);
+    const activeHotspotUsers = hotspotUsers.length;
+    const activePppoeUsers = pppoeUsers.length;
+    const model =
+      String(
+        resourceRow["board-name"] ||
+          routerboardRow.model ||
+          resourceRow.platform ||
+          "",
+      ) || router.name;
+    const boardName = String(resourceRow["board-name"] || routerboardRow.model || "");
+    const version = String(resourceRow.version || routerboardRow["current-firmware"] || "");
 
     return {
       isOnline: true,
       uptimeSeconds,
+      cpuLoad,
+      freeMemory,
+      totalMemory,
+      activeHotspotUsers,
+      activePppoeUsers,
+      activeUsers: activeHotspotUsers + activePppoeUsers,
+      model,
+      boardName,
+      version,
+      lastSeenAt: new Date().toISOString(),
     };
   } catch (error) {
     console.error(`Router health check failed for ${router.name}:`, error);
     return {
       isOnline: false,
       uptimeSeconds: 0,
+      cpuLoad: 0,
+      freeMemory: 0,
+      totalMemory: 0,
+      activeHotspotUsers: 0,
+      activePppoeUsers: 0,
+      activeUsers: 0,
+      model: router.name,
+      boardName: "",
+      version: "",
+      lastSeenAt: new Date().toISOString(),
     };
   }
 }

@@ -31,10 +31,35 @@ Deno.serve(async (req) => {
 
     const snapshot = await getRouterHealth(router as RouterRecord);
     const status = snapshot.isOnline ? "Online" : "Offline";
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentSamples } = await service
+      .from("router_health_samples")
+      .select("uptime_seconds, downtime_seconds")
+      .eq("router_id", router.id)
+      .gte("recorded_at", since);
+
+    const uptime24h = (recentSamples || []).reduce(
+      (total, sample) => total + Number(sample.uptime_seconds || 0),
+      0,
+    );
+    const downtime24h = (recentSamples || []).reduce(
+      (total, sample) => total + Number(sample.downtime_seconds || 0),
+      0,
+    );
+    const availability24h =
+      uptime24h + downtime24h > 0
+        ? (uptime24h / (uptime24h + downtime24h)) * 100
+        : snapshot.isOnline
+          ? 100
+          : 0;
 
     await service
       .from("routers")
-      .update({ status })
+      .update({
+        status,
+        active_users: snapshot.activeUsers,
+        model: snapshot.model || router.name,
+      })
       .eq("id", router.id);
 
     await auditLog(service, {
@@ -44,7 +69,12 @@ Deno.serve(async (req) => {
       action: "router.status_checked",
       status: "success",
       message: `Router status resolved as ${status}`,
-      meta: { uptime_seconds: snapshot.uptimeSeconds },
+      meta: {
+        uptime_seconds: snapshot.uptimeSeconds,
+        cpu_load: snapshot.cpuLoad,
+        active_users: snapshot.activeUsers,
+        availability_24h: availability24h,
+      },
     });
 
     return new Response(
@@ -53,6 +83,19 @@ Deno.serve(async (req) => {
         name: router.name,
         status,
         uptime_seconds: snapshot.uptimeSeconds,
+        cpu_load: snapshot.cpuLoad,
+        free_memory: snapshot.freeMemory,
+        total_memory: snapshot.totalMemory,
+        active_users: snapshot.activeUsers,
+        hotspot_active_users: snapshot.activeHotspotUsers,
+        pppoe_active_users: snapshot.activePppoeUsers,
+        model: snapshot.model || router.name,
+        board_name: snapshot.boardName,
+        version: snapshot.version,
+        last_seen_at: snapshot.lastSeenAt,
+        uptime_24h: uptime24h,
+        downtime_24h: downtime24h,
+        availability_24h: availability24h,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

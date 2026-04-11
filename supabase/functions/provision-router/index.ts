@@ -6,123 +6,440 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-function generateMikroTikScript(
-  router: Record<string, unknown>,
-  portalUrl: string,
-  supabaseUrl: string,
-) {
-  const hotspotAddress = String(router.hotspot_address || "10.5.50.1/24");
-  const dnsName = String(router.dns_name || "hotspot.local");
-  const routerName = String(router.name || "MoonConnect");
-  const routerToken = String(router.provision_token || "");
+const textHeaders = {
+  ...corsHeaders,
+  "Content-Type": "text/plain; charset=utf-8",
+};
+
+const htmlHeaders = {
+  ...corsHeaders,
+  "Content-Type": "text/html; charset=utf-8",
+};
+
+const jsonHeaders = {
+  ...corsHeaders,
+  "Content-Type": "application/json; charset=utf-8",
+};
+
+const svgHeaders = {
+  ...corsHeaders,
+  "Content-Type": "image/svg+xml; charset=utf-8",
+};
+
+function buildBootstrapScript(functionUrl: string) {
+  return `# ============================================
+# MoonConnect - MikroTik Bootstrap Script
+# ============================================
+
+:if ([/ping 8.8.8.8 count=3] = 0) do={
+    :error "No internet connection. Please check your router WAN and DNS.";
+}
+
+:do {
+    :put "Downloading MoonConnect configuration...";
+    /tool fetch url="${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc;
+    :delay 2s;
+
+    :if ([:len [/file find name="moonconnect-config.rsc"]] = 0) do={
+        :error "MoonConnect configuration download failed.";
+    }
+
+    :put "Applying MoonConnect configuration...";
+    /import moonconnect-config.rsc;
+    /file remove [find name="moonconnect-config.rsc"];
+    :put "MoonConnect configuration completed successfully.";
+} on-error={
+    :put "MoonConnect provisioning failed:";
+    :put $error;
+}
+`;
+}
+
+function safeRouterSlug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "router";
+}
+
+function assetUrl(functionUrl: string, assetPath: string) {
+  return `${functionUrl}&mode=asset&asset=${encodeURIComponent(assetPath)}`;
+}
+
+function buildConfigScript(options: {
+  functionUrl: string;
+  portalUrl: string;
+  routerName: string;
+  hotspotAddress: string;
+  dnsName: string;
+  disableSharing: boolean;
+  deviceTracking: boolean;
+  bandwidthControl: boolean;
+  sessionLogging: boolean;
+  supabaseUrl: string;
+}) {
+  const {
+    functionUrl,
+    portalUrl,
+    routerName,
+    hotspotAddress,
+    dnsName,
+    disableSharing,
+    deviceTracking,
+    bandwidthControl,
+    sessionLogging,
+    supabaseUrl,
+  } = options;
+
   const networkBase = hotspotAddress.split("/")[0];
   const networkParts = networkBase.split(".");
   const poolStart = `${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.2`;
   const poolEnd = `${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.254`;
-  const slug = routerName.toLowerCase().replace(/\s+/g, "-");
+  const hotspotName = `hotspot-${safeRouterSlug(routerName)}`;
   const portalHost = new URL(portalUrl).hostname;
   const supabaseHost = new URL(supabaseUrl).hostname;
-  const loginUrl = `${portalUrl}?router_token=${routerToken}&amp;mac=\\$(mac)&amp;ip=\\$(ip)&amp;link-login=\\$(link-login-only)&amp;link-orig=\\$(link-orig-esc)`;
-  const loginHtml = `<html><head><meta http-equiv='refresh' content='0;url=${loginUrl}'></head><body>Redirecting...</body></html>`;
 
-  let script = `# ============================================
-# MoonConnect - MikroTik Auto Setup Script
+  const assetPaths = [
+    "login.html",
+    "alogin.html",
+    "status.html",
+    "logout.html",
+    "redirect.html",
+    "rlogin.html",
+    "error.html",
+    "md5.js",
+    "api.json",
+    "css/style.css",
+    "img/user.svg",
+    "img/password.svg",
+    "xml/alogin.html",
+    "xml/error.html",
+    "xml/flogout.html",
+    "xml/login.html",
+  ];
+
+  const assetCommands = assetPaths
+    .map((assetPath) => {
+      const destination = `hotspot/${assetPath}`;
+      return `/tool fetch url="${assetUrl(functionUrl, assetPath)}" mode=https dst-path="${destination}"`;
+    })
+    .join("\n");
+
+  return `# ============================================
+# MoonConnect - MikroTik Configuration
 # Router: ${routerName}
 # Generated: ${new Date().toISOString()}
 # ============================================
 
-/ip pool
-add name=hotspot-pool ranges=${poolStart}-${poolEnd}
+:put "Preparing MoonConnect hotspot setup..."
 
-/ip address
-add address=${hotspotAddress} interface=ether2 comment="MoonConnect Interface"
+:if ([:len [/file find name="hotspot"]] = 0) do={ /file make-dir hotspot }
+:if ([:len [/file find name="hotspot/css"]] = 0) do={ /file make-dir hotspot/css }
+:if ([:len [/file find name="hotspot/img"]] = 0) do={ /file make-dir hotspot/img }
+:if ([:len [/file find name="hotspot/xml"]] = 0) do={ /file make-dir hotspot/xml }
 
-/ip dhcp-server network
-add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
-/ip dhcp-server
-add name=hotspot-dhcp interface=ether2 address-pool=hotspot-pool lease-time=1h disabled=no
+:do { /queue simple remove [find name="hotspot-queue"] } on-error={}
+:do { /queue type remove [find name="hotspot-default"] } on-error={}
+:do { /ip hotspot remove [find name="${hotspotName}"] } on-error={}
+:do { /ip hotspot profile remove [find name="hsprof-moonconnect"] } on-error={}
+:do { /ip dhcp-server remove [find name="hotspot-dhcp"] } on-error={}
+:do { /ip pool remove [find name="hotspot-pool"] } on-error={}
+:do { /ip dns static remove [find name="${dnsName}"] } on-error={}
 
-/ip dns
-set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
-/ip dns static
-add name=${dnsName} address=${networkBase}
+:put "Creating IP pool..."
+/ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
 
-/ip hotspot profile
-add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${dnsName} \\
-  html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie \\
-  http-cookie-lifetime=1d rate-limit=""
+:put "Assigning hotspot address..."
+:do { /ip address add address=${hotspotAddress} interface=ether2 comment="MoonConnect Interface" } on-error={}
 
-/ip hotspot
-add name=hotspot-${slug} interface=ether2 address-pool=hotspot-pool \\
-  profile=hsprof-moonconnect disabled=no
+:put "Configuring DHCP..."
+:do { /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase} } on-error={}
+/ip dhcp-server add name=hotspot-dhcp interface=ether2 address-pool=hotspot-pool lease-time=1h disabled=no
 
-:local loginHtml "${loginHtml}"
-:if ([:len [/file find name="hotspot/login.html"]] > 0) do={
-  /file set [find name="hotspot/login.html"] contents=$loginHtml
-} else={
-  /file add name=hotspot/login.html contents=$loginHtml
+:put "Configuring DNS..."
+/ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
+/ip dns static add name=${dnsName} address=${networkBase}
+
+:put "Creating hotspot profile..."
+/ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${dnsName} html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
+
+:put "Creating hotspot server..."
+/ip hotspot add name=${hotspotName} interface=ether2 address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
+
+:put "Downloading hotspot files..."
+${assetCommands}
+
+:put "Configuring walled garden..."
+:do { /ip hotspot walled-garden ip add dst-host=${portalHost} action=accept comment="MoonConnect Portal" } on-error={}
+:do { /ip hotspot walled-garden ip add dst-host=${supabaseHost} action=accept comment="MoonConnect Supabase" } on-error={}
+:do { /ip hotspot walled-garden ip add dst-host=checkout.paystack.com action=accept comment="Paystack Checkout" } on-error={}
+:do { /ip hotspot walled-garden ip add dst-host=api.paystack.co action=accept comment="Paystack API" } on-error={}
+:do { /ip hotspot walled-garden ip add dst-host=payment.intasend.com action=accept comment="IntaSend" } on-error={}
+:do { /ip hotspot walled-garden ip add dst-host=pay.pesapal.com action=accept comment="PesaPal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host=${portalHost} path=/* action=allow comment="MoonConnect Portal Page" } on-error={}
+
+:put "Configuring NAT and filters..."
+:do { /ip firewall nat add chain=srcnat out-interface=ether1 action=masquerade comment="MoonConnect NAT" } on-error={}
+:do { /ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management" } on-error={}
+:do { /ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established" } on-error={}
+:do { /ip firewall filter add chain=forward action=accept in-interface=ether2 comment="Allow hotspot traffic" } on-error={}
+${disableSharing ? `/ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1` : ""}
+${deviceTracking ? `/ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie
+/ip hotspot set [find name="${hotspotName}"] addresses-per-mac=1` : ""}
+${bandwidthControl ? `/queue type add name=hotspot-default kind=pcq pcq-rate=0 pcq-limit=50 pcq-classifier=dst-address
+/queue simple add name=hotspot-queue target=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 queue=hotspot-default/hotspot-default comment="MoonConnect BW Control"` : ""}
+${sessionLogging ? `/system logging add topics=hotspot action=memory
+/system logging add topics=hotspot action=echo` : ""}
+
+:do { /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M } on-error={}
+:put "MoonConnect hotspot setup complete with hosted portal access to ${portalHost}"
+`;
 }
 
-/ip hotspot walled-garden ip
-add dst-host=${portalHost} action=accept comment="MoonConnect Portal"
-add dst-host=${supabaseHost} action=accept comment="MoonConnect Supabase"
-add dst-host=checkout.paystack.com action=accept comment="Paystack Checkout"
-add dst-host=api.paystack.co action=accept comment="Paystack API"
-add dst-host=payment.intasend.com action=accept comment="IntaSend"
-add dst-host=pay.pesapal.com action=accept comment="PesaPal"
+function redirectHtml(options: {
+  title: string;
+  message: string;
+  targetUrl: string;
+}) {
+  const { title, message, targetUrl } = options;
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="3;url=${targetUrl}">
+  <link rel="stylesheet" href="css/style.css">
+  <title>${title}</title>
+</head>
+<body class="shell">
+  <main class="card">
+    <div class="badge">MoonConnect</div>
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <a class="button" href="${targetUrl}">Continue</a>
+  </main>
+</body>
+</html>`;
+}
 
-/ip hotspot walled-garden
-add dst-host=${portalHost} path=/* action=allow comment="MoonConnect Portal Page"
+function hotspotStyleCss() {
+  return `:root {
+  --bg: #08111f;
+  --card: rgba(11, 23, 42, 0.88);
+  --line: rgba(255, 255, 255, 0.09);
+  --text: #e7eef8;
+  --muted: #9bb0c9;
+  --primary: #5eead4;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(34, 197, 94, 0.18), transparent 30%),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.15), transparent 32%),
+    linear-gradient(180deg, #07101d 0%, #0b1424 100%);
+}
+.shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.card {
+  width: 100%;
+  max-width: 460px;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+.badge {
+  display: inline-flex;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(94, 234, 212, 0.22);
+  color: var(--primary);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+h1 { margin: 0 0 10px; font-size: 28px; }
+p { margin: 0; color: var(--muted); line-height: 1.6; }
+.button {
+  display: inline-flex;
+  margin-top: 18px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  color: #04131b;
+  text-decoration: none;
+  font-weight: 700;
+  background: var(--primary);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+.icon {
+  width: 42px;
+  height: 42px;
+}`;
+}
 
-/ip firewall nat
-add chain=srcnat out-interface=ether1 action=masquerade comment="MoonConnect NAT"
+function md5Js() {
+  return `window.hexMD5 = function (value) { return value; };`;
+}
 
-/ip firewall filter
-add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management"
-add chain=forward action=accept connection-state=established,related comment="Allow established"
-add chain=forward action=accept in-interface=ether2 comment="Allow hotspot traffic"
-`;
+function userSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9bb0c9" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.8-3.7 5.2-5.5 8-5.5s6.2 1.8 8 5.5"/></svg>`;
+}
 
-  if (router.disable_sharing) {
-    script += `
-/ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1
-`;
+function passwordSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9bb0c9" stroke-width="1.7"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/></svg>`;
+}
+
+function loginHtml(options: {
+  businessName: string;
+  routerName: string;
+  portalUrl: string;
+  routerToken: string;
+}) {
+  const { businessName, routerName, portalUrl, routerToken } = options;
+  const redirectUrl = `${portalUrl}?router_token=${routerToken}&mac=$(mac)&ip=$(ip)&link-login=$(link-login-only)&link-orig=$(link-orig-esc)`;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/style.css">
+  <title>${businessName}</title>
+</head>
+<body class="shell">
+  <main class="card">
+    <div class="badge">MoonConnect Hotspot</div>
+    <h1>${businessName}</h1>
+    <p>Preparing your secure hotspot session on ${routerName}. You will be redirected to the customer portal automatically.</p>
+    <div class="row">
+      <img class="icon" src="img/user.svg" alt="">
+      <p>Device details are passed to your hosted captive portal so billing and login stay in sync.</p>
+    </div>
+    <a class="button" href="${redirectUrl}">Open Portal</a>
+  </main>
+  <script>
+    setTimeout(function () {
+      window.location.replace("${redirectUrl}");
+    }, 1200);
+  </script>
+</body>
+</html>`;
+}
+
+function apiJson(options: {
+  businessName: string;
+  routerName: string;
+  portalUrl: string;
+}) {
+  const { businessName, routerName, portalUrl } = options;
+  return JSON.stringify(
+    {
+      provider: "MoonConnect",
+      business_name: businessName,
+      router_name: routerName,
+      portal_url: portalUrl,
+      generated_at: new Date().toISOString(),
+    },
+    null,
+    2,
+  );
+}
+
+function assetResponse(options: {
+  asset: string;
+  businessName: string;
+  routerName: string;
+  portalUrl: string;
+  routerToken: string;
+}) {
+  const { asset, businessName, routerName, portalUrl, routerToken } = options;
+  const portalHome = `${portalUrl}?router_token=${routerToken}`;
+
+  if (asset === "login.html") {
+    return new Response(
+      loginHtml({ businessName, routerName, portalUrl, routerToken }),
+      { headers: htmlHeaders },
+    );
   }
 
-  if (router.device_tracking) {
-    script += `
-/ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie
-/ip hotspot set [find name="hotspot-${slug}"] addresses-per-mac=1
-`;
+  if (asset === "api.json") {
+    return new Response(apiJson({ businessName, routerName, portalUrl }), {
+      headers: jsonHeaders,
+    });
   }
 
-  if (router.bandwidth_control) {
-    script += `
-/queue type
-add name=hotspot-default kind=pcq pcq-rate=0 pcq-limit=50 pcq-classifier=dst-address
-/queue simple
-add name=hotspot-queue target=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 queue=hotspot-default/hotspot-default comment="MoonConnect BW Control"
-`;
+  if (asset === "css/style.css") {
+    return new Response(hotspotStyleCss(), { headers: textHeaders });
   }
 
-  if (router.session_logging) {
-    script += `
-/system logging
-add topics=hotspot action=memory
-add topics=hotspot action=echo
-`;
+  if (asset === "md5.js") {
+    return new Response(md5Js(), { headers: textHeaders });
   }
 
-  script += `
-/ip hotspot user profile
-add name=default shared-users=1 rate-limit=2M/2M
+  if (asset === "img/user.svg") {
+    return new Response(userSvg(), { headers: svgHeaders });
+  }
 
-# Captive portal redirect:
-# ${portalUrl}?router_token=${routerToken}&mac=<mac>&ip=<ip>
-# ============================================
-`;
+  if (asset === "img/password.svg") {
+    return new Response(passwordSvg(), { headers: svgHeaders });
+  }
 
-  return script;
+  const xmlRedirect = `<?xml version="1.0" encoding="UTF-8"?><response><redirect>${portalHome}</redirect></response>`;
+  if (asset === "xml/alogin.html" || asset === "xml/error.html" || asset === "xml/flogout.html" || asset === "xml/login.html") {
+    return new Response(xmlRedirect, { headers: textHeaders });
+  }
+
+  const pages: Record<string, { title: string; message: string }> = {
+    "alogin.html": {
+      title: "Already connected",
+      message: "Your router session is active. Continue to the MoonConnect portal to manage access.",
+    },
+    "status.html": {
+      title: "Session status",
+      message: "Your access state is managed in the hosted MoonConnect portal.",
+    },
+    "logout.html": {
+      title: "Logged out",
+      message: "You have been logged out locally. Re-open the portal when you want to reconnect.",
+    },
+    "redirect.html": {
+      title: "Redirecting",
+      message: "MoonConnect is redirecting you to the hosted captive portal.",
+    },
+    "rlogin.html": {
+      title: "Remote login",
+      message: "Continue to the secure MoonConnect login page for package selection and access.",
+    },
+    "error.html": {
+      title: "Portal unavailable",
+      message: "The hosted portal is temporarily unavailable. Try again in a moment or contact your ISP admin.",
+    },
+  };
+
+  if (pages[asset]) {
+    return new Response(
+      redirectHtml({
+        title: pages[asset].title,
+        message: pages[asset].message,
+        targetUrl: portalHome,
+      }),
+      { headers: htmlHeaders },
+    );
+  }
+
+  return new Response("Asset not found", { status: 404, headers: textHeaders });
 }
 
 Deno.serve(async (req) => {
@@ -132,11 +449,13 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
+  const mode = url.searchParams.get("mode") || "bootstrap";
+  const requestedAsset = url.searchParams.get("asset");
 
   if (!token) {
     return new Response("Missing provision token", {
       status: 400,
-      headers: corsHeaders,
+      headers: textHeaders,
     });
   }
 
@@ -154,24 +473,29 @@ Deno.serve(async (req) => {
   if (error || !router) {
     return new Response("# Invalid provision token\n", {
       status: 404,
-      headers: { ...corsHeaders, "Content-Type": "text/plain" },
+      headers: textHeaders,
     });
   }
 
   const rootDomain = Deno.env.get("APP_ROOT_DOMAIN");
   const publicAppUrl = Deno.env.get("PUBLIC_APP_URL");
   const baseAppUrl = (publicAppUrl || "https://moonconnect.app").replace(/\/$/, "");
-  let portalUrl = `${baseAppUrl}/portal`;
+  const appendOrgParam = (value: string, orgSlug: string) =>
+    `${value}${value.includes("?") ? "&" : "?"}org=${orgSlug}`;
 
-  const appendOrgParam = (url: string, orgSlug: string) =>
-    `${url}${url.includes("?") ? "&" : "?"}org=${orgSlug}`;
+  let portalUrl = `${baseAppUrl}/portal`;
+  let businessName = String(router.name || "MoonConnect ISP");
 
   if (router.org_id) {
     const { data: org } = await supabase
       .from("organizations")
-      .select("subdomain")
+      .select("subdomain, name")
       .eq("id", router.org_id)
       .single();
+
+    if (org?.name) {
+      businessName = String(org.name);
+    }
 
     if (org?.subdomain) {
       const slug = String(org.subdomain);
@@ -183,16 +507,43 @@ Deno.serve(async (req) => {
     }
   }
 
-  const script = generateMikroTikScript(
-    router,
-    portalUrl,
-    Deno.env.get("SUPABASE_URL")!,
-  );
+  const functionUrl = `${url.origin}${url.pathname}?token=${token}`;
 
-  return new Response(script, {
+  if (mode === "asset" && requestedAsset) {
+    return assetResponse({
+      asset: requestedAsset,
+      businessName,
+      routerName: String(router.name || "MoonConnect Router"),
+      portalUrl,
+      routerToken: token,
+    });
+  }
+
+  if (mode === "config") {
+    const script = buildConfigScript({
+      functionUrl,
+      portalUrl,
+      routerName: String(router.name || "MoonConnect Router"),
+      hotspotAddress: String(router.hotspot_address || "10.5.50.1/24"),
+      dnsName: String(router.dns_name || "hotspot.local"),
+      disableSharing: Boolean(router.disable_sharing),
+      deviceTracking: Boolean(router.device_tracking),
+      bandwidthControl: Boolean(router.bandwidth_control),
+      sessionLogging: Boolean(router.session_logging),
+      supabaseUrl: Deno.env.get("SUPABASE_URL")!,
+    });
+
+    return new Response(script, {
+      headers: {
+        ...textHeaders,
+        "Content-Disposition": 'attachment; filename="moonconnect-config.rsc"',
+      },
+    });
+  }
+
+  return new Response(buildBootstrapScript(functionUrl), {
     headers: {
-      ...corsHeaders,
-      "Content-Type": "text/plain; charset=utf-8",
+      ...textHeaders,
       "Content-Disposition": 'attachment; filename="moonconnect.rsc"',
     },
   });
