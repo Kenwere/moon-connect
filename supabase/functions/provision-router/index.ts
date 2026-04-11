@@ -219,6 +219,8 @@ ${bandwidthControl ? `/queue type add name=hotspot-default kind=pcq pcq-rate=0 p
 ${sessionLogging ? `/system logging add topics=hotspot action=memory
 /system logging add topics=hotspot action=echo` : ""}
 
+:do { /ip hotspot user profile remove [find name="default"] } on-error={}
+:put "Creating default user profile..."
 /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M
 :put "MoonConnect hotspot setup complete with hosted portal access to ${portalHost}"
 `;
