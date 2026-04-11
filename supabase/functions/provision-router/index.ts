@@ -57,8 +57,11 @@ add name=hotspot-${slug} interface=ether2 address-pool=hotspot-pool \\
   profile=hsprof-moonconnect disabled=no
 
 :local loginHtml "${loginHtml}"
-/file print file=hotspot/login.html
-/file set [find name="hotspot/login.html"] contents=$loginHtml
+:if ([:len [/file find name="hotspot/login.html"]] > 0) do={
+  /file set [find name="hotspot/login.html"] contents=$loginHtml
+} else={
+  /file add name=hotspot/login.html contents=$loginHtml
+}
 
 /ip hotspot walled-garden ip
 add dst-host=${portalHost} action=accept comment="MoonConnect Portal"
