@@ -266,6 +266,15 @@ function redirectHtml(options: {
 </html>`;
 }
 
+function escapeHtmlAttribute(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function hotspotStyleCss() {
   return `:root {
   --bg: #08111f;
@@ -356,6 +365,7 @@ function loginHtml(options: {
 }) {
   const { businessName, routerName, portalUrl, routerToken } = options;
   const redirectUrl = `${portalUrl}?router_token=${routerToken}&mac=$(mac)&ip=$(ip)&link-login=$(link-login-only)&link-orig=$(link-orig-esc)`;
+  const redirectUrlHtml = escapeHtmlAttribute(redirectUrl);
 
   return `<!doctype html>
 <html lang="en">
@@ -374,7 +384,7 @@ function loginHtml(options: {
       <img class="icon" src="img/user.svg" alt="">
       <p>Device details are passed to your hosted captive portal so billing and login stay in sync.</p>
     </div>
-    <a class="button" href="${redirectUrl}">Open Portal</a>
+    <a class="button" href="${redirectUrlHtml}">Open Portal</a>
   </main>
   <script>
     setTimeout(function () {
