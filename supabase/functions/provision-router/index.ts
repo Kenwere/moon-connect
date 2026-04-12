@@ -56,6 +56,7 @@ function buildBootstrapScript(functionUrl: string) {
 
 :do {
     :put "Downloading MoonConnect configuration...";
+    :do { /file remove [find name="moonconnect-config.rsc"] } on-error={}
     /tool fetch url="${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc;
     :delay 3s;
 
@@ -88,6 +89,10 @@ function buildBootstrapScript(functionUrl: string) {
 
 function safeRouterSlug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "router";
+}
+
+function routerosQuote(value: string) {
+  return `"${String(value).replace(/(["\\])/g, "\\$1")}"`;
 }
 
 function buildConfigScript(options: {
@@ -203,22 +208,22 @@ ${assetCommands}
 
 :put "Configuring DNS..."
 /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
-/ip dns static add name=${dnsName} address=${networkBase}
+/ip dns static add name=${routerosQuote(dnsName)} address=${networkBase}
 
 :put "Creating hotspot profile..."
-/ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${dnsName} html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
+/ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${routerosQuote(dnsName)} html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
 
 :put "Creating hotspot server..."
-/ip hotspot add name=${hotspotName} interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
+/ip hotspot add name=${routerosQuote(hotspotName)} interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
 
 :put "Configuring walled garden..."
-/ip hotspot walled-garden ip add dst-host=${portalHost} action=accept comment="MoonConnect Portal"
-/ip hotspot walled-garden ip add dst-host=${supabaseHost} action=accept comment="MoonConnect Supabase"
+/ip hotspot walled-garden ip add dst-host=${routerosQuote(portalHost)} action=accept comment="MoonConnect Portal"
+/ip hotspot walled-garden ip add dst-host=${routerosQuote(supabaseHost)} action=accept comment="MoonConnect Supabase"
 /ip hotspot walled-garden ip add dst-host=checkout.paystack.com action=accept comment="Paystack Checkout"
 /ip hotspot walled-garden ip add dst-host=api.paystack.co action=accept comment="Paystack API"
 /ip hotspot walled-garden ip add dst-host=payment.intasend.com action=accept comment="IntaSend"
 /ip hotspot walled-garden ip add dst-host=pay.pesapal.com action=accept comment="PesaPal"
-/ip hotspot walled-garden add dst-host=${portalHost} path=/* action=allow comment="MoonConnect Portal Page"
+/ip hotspot walled-garden add dst-host=${routerosQuote(portalHost)} path=/* action=allow comment="MoonConnect Portal Page"
 
 :put "Configuring NAT and filters..."
 /ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect NAT"
