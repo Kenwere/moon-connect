@@ -55,34 +55,73 @@ function buildBootstrapScript(functionUrl: string) {
 }
 
 :do {
-    :put "Downloading MoonConnect configuration...";
-    :do { /file remove [find name="moonconnect-config.rsc"] } on-error={}
-    /tool fetch url="${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc;
+    :put "========================================="
+    :put "Downloading MoonConnect configuration..."
+    :put "========================================="
+    
+    :do { /file remove [find where name="moonconnect-config.rsc"] } on-error={}
+    
+    /tool fetch url="${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc check-certificate=no;
     :delay 3s;
 
-    :if ([:len [/file find name="moonconnect-config.rsc"]] = 0) do={
-        :put "Config file not found. Checking fetch status...";
-        /file print;
-        :error "MoonConnect configuration download failed - file not found after fetch.";
+    :if ([:len [/file find where name="moonconnect-config.rsc"]] = 0) do={
+        :put "Config file not found. Trying without certificate check..."
+        /tool fetch url="${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc;
+        :delay 3s;
+    }
+
+    :if ([:len [/file find where name="moonconnect-config.rsc"]] = 0) do={
+        :put "ERROR: Config file not found after fetch."
+        :put "Current directory contents:"
+        /file print
+        :error "MoonConnect configuration download failed - file not found."
     };
 
-    :local configSize [:len [/file get [find name="moonconnect-config.rsc"] contents]];
-    :put ("Config file size: " . \$configSize);
-    :put "Applying MoonConnect configuration...";
+    :local configSize [:len [/file get [find where name="moonconnect-config.rsc"] contents]];
+    :put ("Config file size: " . \$configSize . " bytes")
+    
+    :if (\$configSize < 500) do={
+        :put "ERROR: Config file is too small, might be corrupted"
+        :put "File contents:"
+        /file print where name="moonconnect-config.rsc"
+        :error "MoonConnect configuration file is corrupted or empty."
+    }
+    
+    :put "========================================="
+    :put "Applying MoonConnect configuration..."
+    :put "========================================="
+    
     :do {
-        /import file-name=moonconnect-config.rsc verbose=yes;
+        /import file-name=moonconnect-config.rsc
     } on-error={
-        :put "MoonConnect config import failed:";
-        :put \$error;
-        :error \$error;
+        :put "Import failed. Trying with verbose mode..."
+        :do {
+            /import file-name=moonconnect-config.rsc verbose=yes
+        } on-error={
+            :put "========================================="
+            :put "ERROR: MoonConnect config import failed"
+            :put "========================================="
+            :put \$error
+            :put "File contents preview:"
+            /file print where name="moonconnect-config.rsc"
+            :error "Failed to import MoonConnect configuration"
+        }
     };
-    /file remove [find name="moonconnect-config.rsc"];
-    :put "MoonConnect configuration completed successfully.";
+    
+    :do { /file remove [find where name="moonconnect-config.rsc"] } on-error={}
+    
+    :put "========================================="
+    :put "MoonConnect configuration completed successfully!"
+    :put "Hotspot should be available at: http://hotspot.local"
+    :put "========================================="
+    
 } on-error={
-    :put "MoonConnect provisioning failed with error:";
-    :put \$error;
-    :put "Current directory contents:";
-    /file print;
+    :put "========================================="
+    :put "MoonConnect provisioning failed with error:"
+    :put "========================================="
+    :put \$error
+    :put "Current directory contents:"
+    /file print
 }
 `;
 }
@@ -151,8 +190,9 @@ function buildConfigScript(options: {
     .map((assetPath) => {
       const destination = `hotspot/${assetPath}`;
       const assetUrl = `${functionUrl}&mode=asset&asset=${encodeURIComponent(assetPath)}`;
-      return `:put "Downloading ${assetPath}..."
-:do { /tool fetch url='${assetUrl}' mode=https dst-path='${destination}' } on-error={ :put "Failed to download ${assetPath}" }`;
+      return `:put "  Downloading ${assetPath}..."
+:do { /tool fetch url="${assetUrl}" mode=https dst-path="${destination}" check-certificate=no } on-error={ :put "    Failed to download ${assetPath}" }
+:delay 500ms`;
     })
     .join("\n");
 
@@ -162,8 +202,11 @@ function buildConfigScript(options: {
 # Generated: ${new Date().toISOString()}
 # ============================================
 
-:put "Preparing MoonConnect hotspot setup..."
+:put "========================================="
+:put "MoonConnect Hotspot Setup Starting"
+:put "========================================="
 
+# Detect LAN interface
 :local lanInterface ""
 :if ([:len [/interface find where name="bridge"]] > 0) do={ :set lanInterface "bridge" }
 :if ((\$lanInterface = "") && ([:len [/interface find where name="bridge1"]] > 0)) do={ :set lanInterface "bridge1" }
@@ -172,76 +215,116 @@ function buildConfigScript(options: {
 :if ((\$lanInterface = "") && ([:len [/interface find where default-name="ether2"]] > 0)) do={
   :set lanInterface [/interface get [/interface find where default-name="ether2"] name]
 }
+
 :if (\$lanInterface = "") do={
-  :error "Could not detect LAN interface. Rename your customer interface to bridge, bridge1, LAN, or ether2 and retry."
+  :put "ERROR: Could not detect LAN interface"
+  :put "Available interfaces:"
+  /interface print
+  :error "Could not detect LAN interface. Please ensure your LAN interface is named bridge, bridge1, LAN, or ether2"
 }
 
-:put ("Using LAN interface: " . \$lanInterface)
+:put "Using LAN interface: \$lanInterface"
 
-:do { /file make-dir hotspot } on-error={ :put "FAIL: make-dir hotspot" }
-:do { /file make-dir hotspot/css } on-error={ :put "FAIL: make-dir hotspot/css" }
-:do { /file make-dir hotspot/img } on-error={ :put "FAIL: make-dir hotspot/img" }
-:do { /file make-dir hotspot/xml } on-error={ :put "FAIL: make-dir hotspot/xml" }
+# Create directories
+:put "Creating hotspot directories..."
+:do { /file make-dir hotspot } on-error={ :put "  Directory already exists" }
+:do { /file make-dir hotspot/css } on-error={ :put "  Directory already exists" }
+:do { /file make-dir hotspot/img } on-error={ :put "  Directory already exists" }
+:do { /file make-dir hotspot/xml } on-error={ :put "  Directory already exists" }
 
+# Download hotspot files
 :put "Downloading hotspot files..."
 ${assetCommands}
 :put "All assets downloaded successfully"
 
-# Continue with hotspot configuration
-:do { /queue simple remove [find name="hotspot-queue"] } on-error={ :put "SKIP: queue simple remove" }
-:do { /queue type remove [find name="hotspot-default"] } on-error={ :put "SKIP: queue type remove" }
-:do { /ip hotspot remove [find name=${routerosQuote(hotspotName)}] } on-error={ :put "SKIP: hotspot remove" }
-:do { /ip hotspot profile remove [find name="hsprof-moonconnect"] } on-error={ :put "SKIP: profile remove" }
-:do { /ip dhcp-server remove [find name="hotspot-dhcp"] } on-error={ :put "SKIP: dhcp remove" }
-:do { /ip pool remove [find name="hotspot-pool"] } on-error={ :put "SKIP: pool remove" }
-:do { /ip dns static remove [find name=${routerosQuote(dnsName)}] } on-error={ :put "SKIP: dns static remove" }
+# Remove existing configurations
+:put "Cleaning up existing configurations..."
+:do { /queue simple remove [find where name="hotspot-queue"] } on-error={ :put "  No existing queue found" }
+:do { /queue type remove [find where name="hotspot-default"] } on-error={ :put "  No existing queue type found" }
+:do { /ip hotspot remove [find where name="${hotspotName}"] } on-error={ :put "  No existing hotspot found" }
+:do { /ip hotspot profile remove [find where name="hsprof-moonconnect"] } on-error={ :put "  No existing profile found" }
+:do { /ip dhcp-server remove [find where name="hotspot-dhcp"] } on-error={ :put "  No existing DHCP server found" }
+:do { /ip pool remove [find where name="hotspot-pool"] } on-error={ :put "  No existing pool found" }
+:do { /ip dns static remove [find where name="${dnsName}"] } on-error={ :put "  No existing DNS record found" }
 
-:put "Creating IP pool..."
-:do { /ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd} } on-error={ :put "FAIL: pool add" }
+# Create IP pool
+:put "Creating IP pool: hotspot-pool (${poolStart}-${poolEnd})"
+:do { /ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd} } on-error={ :put "ERROR: Failed to create IP pool" }
 
-:put "Assigning hotspot address..."
-:do { /ip address add address=${hotspotAddress} interface=\$lanInterface comment="MoonConnect Interface" } on-error={ :put "FAIL: address add" }
+# Assign hotspot address
+:put "Assigning hotspot address: ${hotspotAddress}"
+:do { /ip address add address=${hotspotAddress} interface=\$lanInterface comment="MoonConnect Interface" } on-error={ :put "ERROR: Failed to assign IP address" }
 
-:put "Configuring DHCP..."
-:do { /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase} } on-error={ :put "FAIL: dhcp-server network" }
-:do { /ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no } on-error={ :put "FAIL: dhcp-server add" }
+# Configure DHCP
+:put "Configuring DHCP server..."
+:do { /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase} } on-error={ :put "ERROR: Failed to configure DHCP network" }
+:do { /ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no } on-error={ :put "ERROR: Failed to create DHCP server" }
 
+# Configure DNS
 :put "Configuring DNS..."
-:do { /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4 } on-error={ :put "FAIL: dns set" }
-:do { /ip dns static add name=${routerosQuote(dnsName)} address=${networkBase} } on-error={ :put "FAIL: dns static add" }
+:do { /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4 } on-error={ :put "ERROR: Failed to configure DNS" }
+:do { /ip dns static add name="${dnsName}" address=${networkBase} } on-error={ :put "ERROR: Failed to add DNS record" }
 
+# Create hotspot profile
 :put "Creating hotspot profile..."
-:do { /ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${routerosQuote(dnsName)} html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d } on-error={ :put "FAIL: profile add" }
+:do { /ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name="${dnsName}" html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d } on-error={ :put "ERROR: Failed to create hotspot profile" }
 
-:put "Creating hotspot server..."
-:do { /ip hotspot add name=${routerosQuote(hotspotName)} interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no } on-error={ :put "FAIL: hotspot add" }
+# Create hotspot server
+:put "Creating hotspot server: ${hotspotName}"
+:do { /ip hotspot add name="${hotspotName}" interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no } on-error={ :put "ERROR: Failed to create hotspot server" }
 
-:put "Configuring walled garden..."
-:do { /ip hotspot walled-garden ip add dst-host=${routerosQuote(portalHost)} action=accept comment="MoonConnect Portal" } on-error={ :put "FAIL: walled-garden portal" }
-:do { /ip hotspot walled-garden ip add dst-host=${routerosQuote(supabaseHost)} action=accept comment="MoonConnect Supabase" } on-error={ :put "FAIL: walled-garden supabase" }
-:do { /ip hotspot walled-garden ip add dst-host=checkout.paystack.com action=accept comment="Paystack Checkout" } on-error={ :put "FAIL: walled-garden paystack checkout" }
-:do { /ip hotspot walled-garden ip add dst-host=api.paystack.co action=accept comment="Paystack API" } on-error={ :put "FAIL: walled-garden paystack api" }
-:do { /ip hotspot walled-garden ip add dst-host=payment.intasend.com action=accept comment="IntaSend" } on-error={ :put "FAIL: walled-garden intasend" }
-:do { /ip hotspot walled-garden ip add dst-host=pay.pesapal.com action=accept comment="PesaPal" } on-error={ :put "FAIL: walled-garden pesapal" }
-:do { /ip hotspot walled-garden add dst-host=${routerosQuote(portalHost)} path=/* action=allow comment="MoonConnect Portal Page" } on-error={ :put "FAIL: walled-garden path" }
+# Configure walled garden
+:put "Configuring walled garden rules..."
+:do { /ip hotspot walled-garden ip add dst-host="${portalHost}" action=accept comment="MoonConnect Portal" } on-error={ :put "ERROR: Failed to add portal to walled garden" }
+:do { /ip hotspot walled-garden ip add dst-host="${supabaseHost}" action=accept comment="MoonConnect Supabase" } on-error={ :put "ERROR: Failed to add Supabase to walled garden" }
+:do { /ip hotspot walled-garden ip add dst-host="checkout.paystack.com" action=accept comment="Paystack Checkout" } on-error={ :put "  Failed to add Paystack checkout" }
+:do { /ip hotspot walled-garden ip add dst-host="api.paystack.co" action=accept comment="Paystack API" } on-error={ :put "  Failed to add Paystack API" }
+:do { /ip hotspot walled-garden ip add dst-host="payment.intasend.com" action=accept comment="IntaSend" } on-error={ :put "  Failed to add IntaSend" }
+:do { /ip hotspot walled-garden ip add dst-host="pay.pesapal.com" action=accept comment="PesaPal" } on-error={ :put "  Failed to add PesaPal" }
+:do { /ip hotspot walled-garden add dst-host="${portalHost}" path=/* action=allow comment="MoonConnect Portal Page" } on-error={ :put "ERROR: Failed to add portal path to walled garden" }
 
-:put "Configuring NAT and filters..."
-:do { /ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect NAT" } on-error={ :put "FAIL: NAT" }
-:do { /ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management" } on-error={ :put "FAIL: filter input" }
-:do { /ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established" } on-error={ :put "FAIL: filter forward 1" }
-:do { /ip firewall filter add chain=forward action=accept in-interface=\$lanInterface comment="Allow hotspot traffic" } on-error={ :put "FAIL: filter forward 2" }
-${disableSharing ? `:do { /ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1 } on-error={ :put "FAIL: shared-users" }` : ""}
-${deviceTracking ? `:do { /ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie } on-error={ :put "FAIL: login-by" }
-:do { /ip hotspot set [find name=${routerosQuote(hotspotName)}] addresses-per-mac=1 } on-error={ :put "FAIL: addresses-per-mac" }` : ""}
-${bandwidthControl ? `:do { /queue type add name=hotspot-default kind=pcq pcq-rate=0 pcq-limit=50 pcq-classifier=dst-address } on-error={ :put "FAIL: queue type" }
-:do { /queue simple add name=hotspot-queue target=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 queue=hotspot-default/hotspot-default comment="MoonConnect BW Control" } on-error={ :put "FAIL: queue simple" }` : ""}
-${sessionLogging ? `:do { /system logging add topics=hotspot action=memory } on-error={ :put "FAIL: logging memory" }
-:do { /system logging add topics=hotspot action=echo } on-error={ :put "FAIL: logging echo" }` : ""}
+# Configure NAT and filters
+:put "Configuring NAT and firewall filters..."
+:do { /ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect NAT" } on-error={ :put "ERROR: Failed to add NAT rule" }
+:do { /ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management" } on-error={ :put "ERROR: Failed to add input filter" }
+:do { /ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established" } on-error={ :put "ERROR: Failed to add forward filter 1" }
+:do { /ip firewall filter add chain=forward action=accept in-interface=\$lanInterface comment="Allow hotspot traffic" } on-error={ :put "ERROR: Failed to add forward filter 2" }
 
-:do { /ip hotspot user profile remove [find name="default"] } on-error={ :put "SKIP: user profile remove" }
+# Optional features
+${disableSharing ? `:put "Disabling hotspot sharing..."
+:do { /ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1 } on-error={ :put "ERROR: Failed to disable sharing" }` : ""}
+
+${deviceTracking ? `:put "Enabling device tracking..."
+:do { /ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie } on-error={ :put "ERROR: Failed to set login methods" }
+:do { /ip hotspot set [find name="${hotspotName}"] addresses-per-mac=1 } on-error={ :put "ERROR: Failed to set addresses-per-mac" }` : ""}
+
+${bandwidthControl ? `:put "Setting up bandwidth control..."
+:do { /queue type add name=hotspot-default kind=pcq pcq-rate=0 pcq-limit=50 pcq-classifier=dst-address } on-error={ :put "ERROR: Failed to create queue type" }
+:do { /queue simple add name=hotspot-queue target=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 queue=hotspot-default/hotspot-default comment="MoonConnect BW Control" } on-error={ :put "ERROR: Failed to create queue" }` : ""}
+
+${sessionLogging ? `:put "Enabling session logging..."
+:do { /system logging add topics=hotspot action=memory } on-error={ :put "ERROR: Failed to add memory logging" }
+:do { /system logging add topics=hotspot action=echo } on-error={ :put "ERROR: Failed to add echo logging" }` : ""}
+
+# Create default user profile
 :put "Creating default user profile..."
-:do { /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M } on-error={ :put "FAIL: user profile add" }
-:put "MoonConnect hotspot setup complete with hosted portal access to ${portalHost}"
+:do { /ip hotspot user profile remove [find where name="default"] } on-error={ :put "  No existing user profile found" }
+:do { /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M } on-error={ :put "ERROR: Failed to create user profile" }
+
+# Enable hotspot server
+:put "Enabling hotspot server..."
+:do { /ip hotspot set [find where name="${hotspotName}"] disabled=no } on-error={ :put "ERROR: Failed to enable hotspot" }
+
+:put "========================================="
+:put "MoonConnect hotspot setup complete!"
+:put "Hotspot is running on interface: \$lanInterface"
+:put "Portal URL: http://${dnsName}"
+:put "Customer portal: ${portalHost}"
+:put "========================================="
+
+# Show hotspot status
+:put "Hotspot status:"
+/ip hotspot print where name="${hotspotName}"
 `;
 }
 
@@ -494,8 +577,8 @@ function assetResponse(options: {
   if (pages[decodedAsset]) {
     return new Response(
       redirectHtml({
-        title: pages[asset].title,
-        message: pages[asset].message,
+        title: pages[decodedAsset].title,
+        message: pages[decodedAsset].message,
         targetUrl: portalHome,
       }),
       { headers: htmlHeaders },
