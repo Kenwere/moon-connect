@@ -28,31 +28,22 @@ const svgHeaders = {
 
 function buildBootstrapScript(functionUrl: string) {
   return `# MoonConnect Bootstrap Script
-# RouterOS Compatible Version
-
 :local provisionUrl "${functionUrl}"
-
-:put "Checking internet connectivity..."
+:put "Checking internet..."
 /ping 8.8.8.8 count=3
-
 :if ([/ping 8.8.8.8 count=1] = 0) do={
-  :error "No internet connection"
+  :error "No internet"
 }
-
-:put "Downloading MoonConnect configuration..."
+:put "Downloading config..."
 /tool fetch url=($provisionUrl . "&mode=config") mode=https dst-path=moonconnect-config.rsc check-certificate=no
-
 :delay 2
-
 :local fileId [/file find where name="moonconnect-config.rsc"]
 :if ([:len $fileId] = 0) do={
-  :error "Failed to download configuration file"
+  :error "Download failed"
 }
-
-:put "Applying MoonConnect configuration..."
-/import file-name=moonconnect-config.rsc
-
-:put "MoonConnect provisioning completed!"
+:put "Applying config..."
+/import moonconnect-config.rsc
+:put "Done!"
 /file remove moonconnect-config.rsc
 `;
 }
@@ -113,7 +104,6 @@ function buildConfigScript(options: {
     "xml/login.html",
   ];
 
-  // Generate asset download commands using RouterOS syntax
   const assetCommands: string[] = [];
   for (const assetPath of assetPaths) {
     const destination = `hotspot/${assetPath}`;
@@ -121,178 +111,58 @@ function buildConfigScript(options: {
     assetCommands.push(`/tool fetch url="${assetUrl}" mode=https dst-path="${destination}" check-certificate=no`);
   }
 
-  // PURE ROUTEROS SYNTAX - WITH ALL FIXES
-  return `# MoonConnect Router Configuration
-# RouterOS Compatible Version
-# Generated for router: ${routerName}
-
-# Detect LAN interface
+  // ULTRA SIMPLE SCRIPT - minimal RouterOS features
+  return `# MoonConnect Config
 :local lanInterface ""
 :if ([:len [/interface find where name="bridge"]] > 0) do={
   :set lanInterface "bridge"
 }
-:if ([:len [/interface find where name="bridge1"]] > 0) do={
-  :set lanInterface "bridge1"
-}
 :if ([:len [/interface find where name="ether2"]] > 0) do={
   :set lanInterface "ether2"
 }
-:if ([:len [/interface find where name="LAN"]] > 0) do={
-  :set lanInterface "LAN"
-}
-
 :if ([:len $lanInterface] = 0) do={
-  :error "Could not detect LAN interface"
+  :error "No LAN interface"
 }
-
-:put ("Using LAN interface: " . $lanInterface)
-
-# Create directories
 /file make-dir hotspot
 /file make-dir hotspot/css
 /file make-dir hotspot/img
 /file make-dir hotspot/xml
-
-# Download hotspot files
-:put "Downloading hotspot assets..."
 ${assetCommands.join("\n")}
-
-# Safely remove existing configurations
-:foreach i in=[/queue simple find where name="hotspot-queue"] do={ /queue simple remove $i }
-:foreach i in=[/queue type find where name="hotspot-default"] do={ /queue type remove $i }
-:foreach i in=[/ip hotspot find where name="${hotspotName}"] do={ /ip hotspot remove $i }
-:foreach i in=[/ip hotspot profile find where name="hsprof-moonconnect"] do={ /ip hotspot profile remove $i }
-:foreach i in=[/ip dhcp-server find where name="hotspot-dhcp"] do={ /ip dhcp-server remove $i }
-:foreach i in=[/ip pool find where name="hotspot-pool"] do={ /ip pool remove $i }
-:foreach i in=[/ip dns static find where name="${dnsName}"] do={ /ip dns static remove $i }
-
-# Safely create IP pool
-:if ([:len [/ip pool find where name="hotspot-pool"]] = 0) do={
-  /ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
-}
-
-# Safely assign hotspot address
-:local addressExists [/ip address find where address="${hotspotAddress}"]
-:if ([:len $addressExists] = 0) do={
-  /ip address add address=${hotspotAddress} interface=$lanInterface comment="MoonConnect Interface"
-}
-
-# Safely configure DHCP
-:if ([:len [/ip dhcp-server network find where address="${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24"]] = 0) do={
-  /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
-}
-
-:if ([:len [/ip dhcp-server find where name="hotspot-dhcp"]] = 0) do={
-  /ip dhcp-server add name=hotspot-dhcp interface=$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no
-}
-
-# Safely configure DNS
+/ip hotspot remove [find where name="${hotspotName}"]
+/ip hotspot profile remove [find where name="hsprof-moonconnect"]
+/ip dhcp-server remove [find where name="hotspot-dhcp"]
+/ip pool remove [find where name="hotspot-pool"]
+/ip dns static remove [find where name="${dnsName}"]
+/ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
+/ip address add address=${hotspotAddress} interface=\$lanInterface
+/ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
+/ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h
 /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
-
-:if ([:len [/ip dns static find where name="${dnsName}"]] = 0) do={
-  /ip dns static add name="${dnsName}" address=${networkBase}
-}
-
-# Safely create hotspot profile
-:if ([:len [/ip hotspot profile find where name="hsprof-moonconnect"]] = 0) do={
-  /ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name="${dnsName}" html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
-}
-
-# Safely create hotspot server
-:if ([:len [/ip hotspot find where name="${hotspotName}"]] = 0) do={
-  /ip hotspot add name="${hotspotName}" interface=$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
-}
-
-# Safely configure walled garden - FIXED: path="/*" with quotes
-:local portalRuleExists [/ip hotspot walled-garden find where dst-host="${portalHost}"]
-:if ([:len $portalRuleExists] = 0) do={
-  /ip hotspot walled-garden ip add dst-host="${portalHost}" action=accept comment="MoonConnect Portal"
-}
-
-:local supabaseRuleExists [/ip hotspot walled-garden find where dst-host="${supabaseHost}"]
-:if ([:len $supabaseRuleExists] = 0) do={
-  /ip hotspot walled-garden ip add dst-host="${supabaseHost}" action=accept comment="MoonConnect Supabase"
-}
-
-:local paystackRuleExists [/ip hotspot walled-garden find where dst-host="checkout.paystack.com"]
-:if ([:len $paystackRuleExists] = 0) do={
-  /ip hotspot walled-garden ip add dst-host="checkout.paystack.com" action=accept comment="Paystack Checkout"
-}
-
-:local paystackApiExists [/ip hotspot walled-garden find where dst-host="api.paystack.co"]
-:if ([:len $paystackApiExists] = 0) do={
-  /ip hotspot walled-garden ip add dst-host="api.paystack.co" action=accept comment="Paystack API"
-}
-
-:local intasendExists [/ip hotspot walled-garden find where dst-host="payment.intasend.com"]
-:if ([:len $intasendExists] = 0) do={
-  /ip hotspot walled-garden ip add dst-host="payment.intasend.com" action=accept comment="IntaSend"
-}
-
-:local pesapalExists [/ip hotspot walled-garden find where dst-host="pay.pesapal.com"]
-:if ([:len $pesapalExists] = 0) do={
-  /ip hotspot walled-garden ip add dst-host="pay.pesapal.com" action=accept comment="PesaPal"
-}
-
-# CRITICAL FIX: path="/*" with quotes, not path=/*
-:local portalPathExists [/ip hotspot walled-garden find where dst-host="${portalHost}" and path="/*"]
-:if ([:len $portalPathExists] = 0) do={
-  /ip hotspot walled-garden add dst-host="${portalHost}" path="/*" action=allow comment="MoonConnect Portal Page"
-}
-
-# Safely configure NAT
-:local natExists [/ip firewall nat find where comment="MoonConnect NAT"]
-:if ([:len $natExists] = 0) do={
-  /ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect NAT"
-}
-
-# Safely configure firewall filters
-:local inputFilterExists [/ip firewall filter find where comment="Allow Router Management"]
-:if ([:len $inputFilterExists] = 0) do={
-  /ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management"
-}
-
-:local forwardEstablishedExists [/ip firewall filter find where comment="Allow established"]
-:if ([:len $forwardEstablishedExists] = 0) do={
-  /ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established"
-}
-
-:local forwardHotspotExists [/ip firewall filter find where comment="Allow hotspot traffic"]
-:if ([:len $forwardHotspotExists] = 0) do={
-  /ip firewall filter add chain=forward action=accept in-interface=$lanInterface comment="Allow hotspot traffic"
-}
-
-# Optional features with safe checks
-${disableSharing ? `:if ([:len [/ip hotspot profile find where name="hsprof-moonconnect"]] > 0) do={
-  /ip hotspot profile set [find where name="hsprof-moonconnect"] shared-users=1
-}` : ''}
-
-${deviceTracking ? `:if ([:len [/ip hotspot find where name="${hotspotName}"]] > 0) do={
-  /ip hotspot set [find where name="${hotspotName}"] addresses-per-mac=1
-}` : ''}
-
-${bandwidthControl ? `:if ([:len [/queue simple find where name="hotspot-queue"]] = 0) do={
-  /queue simple add name=hotspot-queue target=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 max-limit=10M/10M
-}` : ''}
-
-${sessionLogging ? `:if ([:len [/system logging find where topics="hotspot"]] = 0) do={
-  /system logging add topics=hotspot action=memory
-}` : ''}
-
-# Safely create default user profile
-:foreach i in=[/ip hotspot user profile find where name="default"] do={ /ip hotspot user profile remove $i }
+/ip dns static add name="${dnsName}" address=${networkBase}
+/ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name="${dnsName}" html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
+/ip hotspot add name="${hotspotName}" interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect
+/ip hotspot walled-garden ip add dst-host="${portalHost}" action=accept
+/ip hotspot walled-garden ip add dst-host="${supabaseHost}" action=accept
+/ip hotspot walled-garden ip add dst-host="checkout.paystack.com" action=accept
+/ip hotspot walled-garden ip add dst-host="api.paystack.co" action=accept
+/ip hotspot walled-garden ip add dst-host="payment.intasend.com" action=accept
+/ip hotspot walled-garden ip add dst-host="pay.pesapal.com" action=accept
+/ip hotspot walled-garden add dst-host="${portalHost}" path="/*" action=allow
+/ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade
+/ip firewall filter add chain=input protocol=tcp dst-port=80,443,8728,8729 action=accept
+/ip firewall filter add chain=forward action=accept connection-state=established,related
+/ip firewall filter add chain=forward action=accept in-interface=\$lanInterface
+${disableSharing ? '/ip hotspot profile set [find where name="hsprof-moonconnect"] shared-users=1' : ''}
+${deviceTracking ? '/ip hotspot set [find where name="' + hotspotName + '"] addresses-per-mac=1' : ''}
+${bandwidthControl ? '/queue simple add name=hotspot-queue target=' + networkParts[0] + '.' + networkParts[1] + '.' + networkParts[2] + '.0/24 max-limit=10M/10M' : ''}
+/ip hotspot user profile remove [find where name="default"]
 /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M
-
-# Safely enable hotspot server
-:if ([:len [/ip hotspot find where name="${hotspotName}"]] > 0) do={
-  /ip hotspot set [find where name="${hotspotName}"] disabled=no
-}
-
-:put "MoonConnect hotspot setup complete!"
+/ip hotspot set [find where name="${hotspotName}"] disabled=no
+:put "Setup complete"
 `;
 }
 
-// All the helper functions remain the same
+// Keep all helper functions from previous version
 function redirectHtml(options: { title: string; message: string; targetUrl: string }) {
   const { title, message, targetUrl } = options;
   return `<!doctype html>
