@@ -512,8 +512,8 @@ Deno.serve(async (req) => {
   }
 
   // Use different env var names (not starting with SUPABASE_)
-  const supabaseUrl = Deno.env.get("PROJECT_URL") || "https://kcsjdagvvbbxnerkxnqv.supabase.co";
-  const supabaseServiceKey = Deno.env.get("SERVICE_KEY") || "sb_secret_0xR7pJtUlbCZH1OHFghHVA_LDJyzDji";
+  const supabaseUrl = Deno.env.get("PROJECT_URL") 
+  const supabaseServiceKey = Deno.env.get("SERVICE_KEY") 
   
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
