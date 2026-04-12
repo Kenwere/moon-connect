@@ -14,6 +14,7 @@ import UsersPage from "./pages/UsersPage";
 import Payments from "./pages/Payments";
 import Vouchers from "./pages/Vouchers";
 import Routers from "./pages/Routers";
+import RadiusServers from "./pages/RadiusServers";
 import Rankings from "./pages/Rankings";
 import SettingsPage from "./pages/SettingsPage";
 import TeamPage from "./pages/TeamPage";
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
             <Route path="/vouchers" element={<ProtectedRoute><Vouchers /></ProtectedRoute>} />
             <Route path="/routers" element={<ProtectedRoute><Routers /></ProtectedRoute>} />
+            <Route path="/radius-servers" element={<ProtectedRoute><RadiusServers /></ProtectedRoute>} />
             <Route path="/rankings" element={<ProtectedRoute><Rankings /></ProtectedRoute>} />
             <Route path="/team" element={<ProtectedRoute><TeamPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />

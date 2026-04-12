@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Package, Users, CreditCard, Ticket,
-  Router, Trophy, Settings, ChevronLeft, Wifi, LogOut, Menu, UsersRound, Cable
+  Router, Trophy, Settings, ChevronLeft, Wifi, LogOut, Menu, UsersRound, Cable, Shield
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -17,6 +17,7 @@ const navItems = [
   { icon: CreditCard, label: "Payments", path: "/payments" },
   { icon: Ticket, label: "Vouchers", path: "/vouchers" },
   { icon: Router, label: "Routers", path: "/routers" },
+  { icon: Shield, label: "RADIUS Servers", path: "/radius-servers" },
   { icon: Trophy, label: "Rankings", path: "/rankings" },
   { icon: UsersRound, label: "Team", path: "/team" },
   { icon: Settings, label: "Settings", path: "/settings" },

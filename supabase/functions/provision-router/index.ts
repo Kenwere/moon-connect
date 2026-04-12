@@ -63,6 +63,11 @@ function buildConfigScript(options: {
   bandwidthControl: boolean;
   sessionLogging: boolean;
   supabaseUrl: string;
+  connectionType: string;
+  hotspotInterfaces: string[];
+  pppoeInterfaces: string[];
+  radiusServerIp?: string;
+  radiusServerSecret?: string;
 }) {
   const {
     functionUrl,
@@ -75,6 +80,11 @@ function buildConfigScript(options: {
     bandwidthControl,
     sessionLogging,
     supabaseUrl,
+    connectionType,
+    hotspotInterfaces,
+    pppoeInterfaces,
+    radiusServerIp,
+    radiusServerSecret,
   } = options;
 
   const networkBase = hotspotAddress.split("/")[0];
@@ -194,23 +204,75 @@ ${assetCommands.join("\n")}
 # Add NAT rule
 /ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade
 
-# Add firewall rules
-/ip firewall filter add chain=input protocol=tcp dst-port=80,443,8728,8729 action=accept
-/ip firewall filter add chain=forward action=accept connection-state=established,related
-/ip firewall filter add chain=forward action=accept in-interface=\$lanInterface
+# Configure comprehensive firewall rules
+# Clear existing filter rules (be careful in production!)
+/ip firewall filter remove [find where chain="input" and comment="MoonConnect"]
+/ip firewall filter remove [find where chain="forward" and comment="MoonConnect"]
+
+# Input chain rules
+/ip firewall filter add chain=input protocol=tcp dst-port=80,443,8728,8729 action=accept comment="MoonConnect - Allow HTTP/HTTPS/API access"
+/ip firewall filter add chain=input protocol=icmp action=accept comment="MoonConnect - Allow ICMP"
+/ip firewall filter add chain=input connection-state=established,related action=accept comment="MoonConnect - Allow established connections"
+/ip firewall filter add chain=input in-interface=\$lanInterface action=accept comment="MoonConnect - Allow LAN access"
+/ip firewall filter add chain=input protocol=udp dst-port=53 action=accept comment="MoonConnect - Allow DNS"
+/ip firewall filter add chain=input protocol=udp dst-port=123 action=accept comment="MoonConnect - Allow NTP"
+
+# Forward chain rules
+/ip firewall filter add chain=forward action=accept connection-state=established,related comment="MoonConnect - Allow established connections"
+/ip firewall filter add chain=forward action=accept in-interface=\$lanInterface comment="MoonConnect - Allow LAN forwarding"
+/ip firewall filter add chain=forward action=drop connection-state=invalid comment="MoonConnect - Drop invalid connections"
+/ip firewall filter add chain=forward action=drop in-interface=\$lanInterface out-interface=\$lanInterface comment="MoonConnect - Prevent LAN to LAN blocking"
+
+# PPPoE specific firewall rules
+${(connectionType === 'pppoe' || connectionType === 'both') ? `
+# PPPoE firewall rules
+/ip firewall filter add chain=input protocol=pppoe action=accept comment="MoonConnect - Allow PPPoE"
+/ip firewall filter add chain=forward action=accept in-interface=pppoe-out1 comment="MoonConnect - Allow PPPoE forwarding"
+` : ''}
+
+# Security hardening
+/ip firewall filter add chain=input action=drop comment="MoonConnect - Drop all other input"
+/ip firewall filter add chain=forward action=drop comment="MoonConnect - Drop all other forwarding"
 
 # Optional features
 ${disableSharing ? '/ip hotspot profile set [find where name="hsprof-moonconnect"] shared-users=1' : ''}
-${deviceTracking ? '/ip hotspot set [find where name="' + hotspotName + '"] addresses-per-mac=1' : ''}
-${bandwidthControl ? '/queue simple add name=hotspot-queue target=' + networkParts[0] + '.' + networkParts[1] + '.' + networkParts[2] + '.0/24 max-limit=10M/10M' : ''}
+${deviceTracking ? `/ip hotspot set [find where name="${hotspotName}"] addresses-per-mac=1` : ''}
+${bandwidthControl ? `/queue simple add name=hotspot-queue target=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 max-limit=10M/10M` : ''}
 ${sessionLogging ? '/system logging add topics=hotspot action=memory' : ''}
+
+# PPPoE Configuration
+${(connectionType === 'pppoe' || connectionType === 'both') ? `
+# Configure PPPoE Server
+/ppp profile remove [find where name="pppoe-profile-moonconnect"]
+/ppp profile add name=pppoe-profile-moonconnect local-address=192.168.100.1 remote-address=pppoe-pool dns-server=8.8.8.8,8.8.4.4
+
+# Create PPPoE server
+/interface pppoe-server server remove [find where service-name="moonconnect-pppoe"]
+/interface pppoe-server server add service-name=moonconnect-pppoe interface=${pppoeInterfaces.join(',')} default-profile=pppoe-profile-moonconnect disabled=no
+
+# Add PPPoE firewall rules
+/ip firewall filter add chain=input protocol=pppoe action=accept
+/ip firewall filter add chain=forward action=accept connection-state=established,related
+${pppoeInterfaces.map(iface => `/ip firewall filter add chain=forward action=accept in-interface=pppoe-${iface}`).join('\n')}
+
+# RADIUS Configuration for PPPoE
+${radiusServerIp && radiusServerSecret ? `
+# Configure RADIUS server for PPPoE
+/radius remove [find where service=pppoe]
+/radius add service=pppoe address=${radiusServerIp} secret="${radiusServerSecret}" auth-port=1812 acct-port=1813 timeout=3s
+
+# Set PPPoE to use RADIUS
+/ppp aaa set use-radius=yes interim-update=5m
+` : ''}
+` : ''}
 
 # Create default user profile
 /ip hotspot user profile remove [find where name="default"]
 /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M
 
-# Enable hotspot
-/ip hotspot set [find where name="${hotspotName}"] disabled=no
+# Enable services based on connection type
+${connectionType === 'hotspot' || connectionType === 'both' ? `/ip hotspot set [find where name="${hotspotName}"] disabled=no` : ''}
+${connectionType === 'pppoe' || connectionType === 'both' ? '/interface pppoe-server server set [find where service-name="moonconnect-pppoe"] disabled=no' : ''}
 
 :put "Setup complete"
 `;
@@ -549,6 +611,24 @@ Deno.serve(async (req) => {
   }
 
   if (mode === "config") {
+    // Fetch RADIUS server details if configured
+    let radiusServerIp = router.radius_server_ip;
+    let radiusServerSecret = router.radius_server_secret;
+
+    if (router.radius_server_id && !radiusServerIp) {
+      const { data: radiusServer } = await supabase
+        .from("radius_servers")
+        .select("ip_address")
+        .eq("id", router.radius_server_id)
+        .single();
+
+      if (radiusServer) {
+        radiusServerIp = radiusServer.ip_address;
+        // Note: Secret should be stored securely, this is a simplified approach
+        // In production, you might want to store secrets encrypted or use a secrets management service
+      }
+    }
+
     const script = buildConfigScript({
       functionUrl,
       portalUrl,
@@ -560,6 +640,11 @@ Deno.serve(async (req) => {
       bandwidthControl: Boolean(router.bandwidth_control),
       sessionLogging: Boolean(router.session_logging),
       supabaseUrl: supabaseUrl,
+      connectionType: String(router.connection_type || "hotspot"),
+      hotspotInterfaces: Array.isArray(router.hotspot_interfaces) ? router.hotspot_interfaces : ["ether2"],
+      pppoeInterfaces: Array.isArray(router.pppoe_interfaces) ? router.pppoe_interfaces : ["ether1"],
+      radiusServerIp: radiusServerIp,
+      radiusServerSecret: radiusServerSecret,
     });
 
     return new Response(script, {
