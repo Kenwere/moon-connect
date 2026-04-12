@@ -36,7 +36,7 @@ function buildBootstrapScript(functionUrl: string) {
 /ping 8.8.8.8 count=3
 
 :if ([/ping 8.8.8.8 count=1] = 0) do={
-  :error "No internet connection. Please check WAN and DNS settings."
+  :error "No internet connection"
 }
 
 :put "Downloading MoonConnect configuration..."
@@ -45,13 +45,13 @@ function buildBootstrapScript(functionUrl: string) {
 :delay 2
 
 :if ([:len [/file find where name="moonconnect-config.rsc"]] = 0) do={
-  :error "Failed to download configuration file."
+  :error "Failed to download"
 }
 
 :put "Applying MoonConnect configuration..."
 /import moonconnect-config.rsc
 
-:put "MoonConnect provisioning completed successfully!"
+:put "MoonConnect provisioning completed!"
 /file remove moonconnect-config.rsc
 `;
 }
@@ -112,7 +112,7 @@ function buildConfigScript(options: {
     "xml/login.html",
   ];
 
-  // Generate asset download commands
+  // Generate asset download commands - one per line, no complex strings
   const assetCommands: string[] = [];
   for (const assetPath of assetPaths) {
     const destination = `hotspot/${assetPath}`;
@@ -120,10 +120,11 @@ function buildConfigScript(options: {
     assetCommands.push(`/tool fetch url="${assetUrl}" mode=https dst-path="${destination}" check-certificate=no`);
   }
 
+  // ULTRA SIMPLE SCRIPT - no complex variables, no special characters
   return `# MoonConnect Router Configuration
 # Generated for router: ${routerName}
 
-# Detect LAN interface
+# Step 1: Detect LAN interface
 :local lanInterface ""
 :if ([:len [/interface find where name="bridge"]] > 0) do={
   :set lanInterface "bridge"
@@ -134,77 +135,76 @@ function buildConfigScript(options: {
 :if ([:len [/interface find where name="LAN"]] > 0) do={
   :set lanInterface "LAN"
 }
-
 :if ([:len \$lanInterface] = 0) do={
-  :error "Could not detect LAN interface"
+  :error "LAN interface not found"
 }
+:put "LAN interface: \$lanInterface"
 
-:put "Using LAN interface: \$lanInterface"
-
-# Create directories
+# Step 2: Create directories
 /file make-dir hotspot
 /file make-dir hotspot/css
 /file make-dir hotspot/img
 /file make-dir hotspot/xml
 
-# Download hotspot files
-:put "Downloading hotspot assets..."
+# Step 3: Download hotspot files
+:put "Downloading hotspot files..."
 ${assetCommands.join("\n")}
 
-# Clean up existing config
-/ip hotspot remove [find name="${hotspotName}"]
-/ip hotspot profile remove [find name="hsprof-moonconnect"]
-/ip dhcp-server remove [find name="hotspot-dhcp"]
-/ip pool remove [find name="hotspot-pool"]
-/ip dns static remove [find name="${dnsName}"]
+# Step 4: Clean up old config
+/ip hotspot remove [find where name="${hotspotName}"]
+/ip hotspot profile remove [find where name="hsprof-moonconnect"]
+/ip dhcp-server remove [find where name="hotspot-dhcp"]
+/ip pool remove [find where name="hotspot-pool"]
+/ip dns static remove [find where name="${dnsName}"]
 
-# Create IP pool
+# Step 5: Create IP pool
 /ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
 
-# Assign hotspot address
-/ip address add address=${hotspotAddress} interface=\$lanInterface comment="MoonConnect Interface"
+# Step 6: Add IP address
+/ip address add address=${hotspotAddress} interface=\$lanInterface comment="MoonConnect"
 
-# Configure DHCP
+# Step 7: Setup DHCP
 /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
 /ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no
 
-# Configure DNS
+# Step 8: Setup DNS
 /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
 /ip dns static add name="${dnsName}" address=${networkBase}
 
-# Create hotspot profile
+# Step 9: Create hotspot profile
 /ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name="${dnsName}" html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
 
-# Create hotspot server
+# Step 10: Create hotspot server
 /ip hotspot add name="${hotspotName}" interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
 
-# Configure walled garden
-/ip hotspot walled-garden ip add dst-host="${portalHost}" action=accept comment="MoonConnect Portal"
-/ip hotspot walled-garden ip add dst-host="${supabaseHost}" action=accept comment="MoonConnect Supabase"
-/ip hotspot walled-garden ip add dst-host="checkout.paystack.com" action=accept comment="Paystack"
-/ip hotspot walled-garden ip add dst-host="api.paystack.co" action=accept comment="Paystack API"
-/ip hotspot walled-garden ip add dst-host="payment.intasend.com" action=accept comment="IntaSend"
-/ip hotspot walled-garden ip add dst-host="pay.pesapal.com" action=accept comment="PesaPal"
+# Step 11: Add walled garden rules
+/ip hotspot walled-garden ip add dst-host="${portalHost}" action=accept
+/ip hotspot walled-garden ip add dst-host="${supabaseHost}" action=accept
+/ip hotspot walled-garden ip add dst-host="checkout.paystack.com" action=accept
+/ip hotspot walled-garden ip add dst-host="api.paystack.co" action=accept
+/ip hotspot walled-garden ip add dst-host="payment.intasend.com" action=accept
+/ip hotspot walled-garden ip add dst-host="pay.pesapal.com" action=accept
 /ip hotspot walled-garden add dst-host="${portalHost}" path=/* action=allow
 
-# Configure NAT
-/ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect NAT"
+# Step 12: Add NAT rule
+/ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect"
 
-# Configure firewall
+# Step 13: Add firewall rules
 /ip firewall filter add chain=input protocol=tcp dst-port=80,443,8728,8729 action=accept comment="Allow Management"
 /ip firewall filter add chain=forward action=accept connection-state=established,related
 /ip firewall filter add chain=forward action=accept in-interface=\$lanInterface
 
-# Optional features
+# Step 14: Apply optional features
 ${disableSharing ? '/ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1' : ''}
 ${deviceTracking ? '/ip hotspot set [find name="' + hotspotName + '"] addresses-per-mac=1' : ''}
 ${bandwidthControl ? '/queue simple add name=hotspot-queue target=' + networkParts[0] + '.' + networkParts[1] + '.' + networkParts[2] + '.0/24 max-limit=10M/10M' : ''}
+${sessionLogging ? '/system logging add topics=hotspot action=memory' : ''}
 
-# Create default user profile
+# Step 15: Setup default user profile
 /ip hotspot user profile remove [find where name="default"]
 /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M
 
-# Enable hotspot
+# Step 16: Enable hotspot
 /ip hotspot set [find name="${hotspotName}"] disabled=no
 
 :put "MoonConnect hotspot setup complete!"
@@ -488,31 +488,13 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Get environment variables - NO HARDCODED FALLBACKS!
+  // Get environment variables
   const supabaseUrl = Deno.env.get("PROJECT_URL");
   const supabaseServiceKey = Deno.env.get("SERVICE_KEY");
   const publicAppUrl = Deno.env.get("APP_URL");
 
-  // Validate all required environment variables are present
-  if (!supabaseUrl) {
-    console.error("Missing PROJECT_URL environment variable");
-    return new Response("Server configuration error: Missing PROJECT_URL", { 
-      status: 500, 
-      headers: textHeaders 
-    });
-  }
-  
-  if (!supabaseServiceKey) {
-    console.error("Missing SERVICE_KEY environment variable");
-    return new Response("Server configuration error: Missing SERVICE_KEY", { 
-      status: 500, 
-      headers: textHeaders 
-    });
-  }
-  
-  if (!publicAppUrl) {
-    console.error("Missing APP_URL environment variable");
-    return new Response("Server configuration error: Missing APP_URL", { 
+  if (!supabaseUrl || !supabaseServiceKey || !publicAppUrl) {
+    return new Response("Server configuration error", { 
       status: 500, 
       headers: textHeaders 
     });
