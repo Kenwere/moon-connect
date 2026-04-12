@@ -178,69 +178,69 @@ function buildConfigScript(options: {
 
 :put ("Using LAN interface: " . \$lanInterface)
 
-:do { /file make-dir hotspot } on-error={}
-:do { /file make-dir hotspot/css } on-error={}
-:do { /file make-dir hotspot/img } on-error={}
-:do { /file make-dir hotspot/xml } on-error={}
+:do { /file make-dir hotspot } on-error={ :put "FAIL: make-dir hotspot" }
+:do { /file make-dir hotspot/css } on-error={ :put "FAIL: make-dir hotspot/css" }
+:do { /file make-dir hotspot/img } on-error={ :put "FAIL: make-dir hotspot/img" }
+:do { /file make-dir hotspot/xml } on-error={ :put "FAIL: make-dir hotspot/xml" }
 
 :put "Downloading hotspot files..."
 ${assetCommands}
 :put "All assets downloaded successfully"
 
 # Continue with hotspot configuration
-:do { /queue simple remove [find name="hotspot-queue"] } on-error={}
-:do { /queue type remove [find name="hotspot-default"] } on-error={}
-:do { /ip hotspot remove [find name="${hotspotName}"] } on-error={}
-:do { /ip hotspot profile remove [find name="hsprof-moonconnect"] } on-error={}
-:do { /ip dhcp-server remove [find name="hotspot-dhcp"] } on-error={}
-:do { /ip pool remove [find name="hotspot-pool"] } on-error={}
-:do { /ip dns static remove [find name="${dnsName}"] } on-error={}
+:do { /queue simple remove [find name="hotspot-queue"] } on-error={ :put "SKIP: queue simple remove" }
+:do { /queue type remove [find name="hotspot-default"] } on-error={ :put "SKIP: queue type remove" }
+:do { /ip hotspot remove [find name=${routerosQuote(hotspotName)}] } on-error={ :put "SKIP: hotspot remove" }
+:do { /ip hotspot profile remove [find name="hsprof-moonconnect"] } on-error={ :put "SKIP: profile remove" }
+:do { /ip dhcp-server remove [find name="hotspot-dhcp"] } on-error={ :put "SKIP: dhcp remove" }
+:do { /ip pool remove [find name="hotspot-pool"] } on-error={ :put "SKIP: pool remove" }
+:do { /ip dns static remove [find name=${routerosQuote(dnsName)}] } on-error={ :put "SKIP: dns static remove" }
 
 :put "Creating IP pool..."
-/ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
+:do { /ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd} } on-error={ :put "FAIL: pool add" }
 
 :put "Assigning hotspot address..."
-/ip address add address=${hotspotAddress} interface=\$lanInterface comment="MoonConnect Interface"
+:do { /ip address add address=${hotspotAddress} interface=\$lanInterface comment="MoonConnect Interface" } on-error={ :put "FAIL: address add" }
 
 :put "Configuring DHCP..."
-/ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
-/ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no
+:do { /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase} } on-error={ :put "FAIL: dhcp-server network" }
+:do { /ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no } on-error={ :put "FAIL: dhcp-server add" }
 
 :put "Configuring DNS..."
-/ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
-/ip dns static add name=${routerosQuote(dnsName)} address=${networkBase}
+:do { /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4 } on-error={ :put "FAIL: dns set" }
+:do { /ip dns static add name=${routerosQuote(dnsName)} address=${networkBase} } on-error={ :put "FAIL: dns static add" }
 
 :put "Creating hotspot profile..."
-/ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${routerosQuote(dnsName)} html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
+:do { /ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name=${routerosQuote(dnsName)} html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d } on-error={ :put "FAIL: profile add" }
 
 :put "Creating hotspot server..."
-/ip hotspot add name=${routerosQuote(hotspotName)} interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
+:do { /ip hotspot add name=${routerosQuote(hotspotName)} interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no } on-error={ :put "FAIL: hotspot add" }
 
 :put "Configuring walled garden..."
-/ip hotspot walled-garden ip add dst-host=${routerosQuote(portalHost)} action=accept comment="MoonConnect Portal"
-/ip hotspot walled-garden ip add dst-host=${routerosQuote(supabaseHost)} action=accept comment="MoonConnect Supabase"
-/ip hotspot walled-garden ip add dst-host=checkout.paystack.com action=accept comment="Paystack Checkout"
-/ip hotspot walled-garden ip add dst-host=api.paystack.co action=accept comment="Paystack API"
-/ip hotspot walled-garden ip add dst-host=payment.intasend.com action=accept comment="IntaSend"
-/ip hotspot walled-garden ip add dst-host=pay.pesapal.com action=accept comment="PesaPal"
-/ip hotspot walled-garden add dst-host=${routerosQuote(portalHost)} path=/* action=allow comment="MoonConnect Portal Page"
+:do { /ip hotspot walled-garden ip add dst-host=${routerosQuote(portalHost)} action=accept comment="MoonConnect Portal" } on-error={ :put "FAIL: walled-garden portal" }
+:do { /ip hotspot walled-garden ip add dst-host=${routerosQuote(supabaseHost)} action=accept comment="MoonConnect Supabase" } on-error={ :put "FAIL: walled-garden supabase" }
+:do { /ip hotspot walled-garden ip add dst-host=checkout.paystack.com action=accept comment="Paystack Checkout" } on-error={ :put "FAIL: walled-garden paystack checkout" }
+:do { /ip hotspot walled-garden ip add dst-host=api.paystack.co action=accept comment="Paystack API" } on-error={ :put "FAIL: walled-garden paystack api" }
+:do { /ip hotspot walled-garden ip add dst-host=payment.intasend.com action=accept comment="IntaSend" } on-error={ :put "FAIL: walled-garden intasend" }
+:do { /ip hotspot walled-garden ip add dst-host=pay.pesapal.com action=accept comment="PesaPal" } on-error={ :put "FAIL: walled-garden pesapal" }
+:do { /ip hotspot walled-garden add dst-host=${routerosQuote(portalHost)} path=/* action=allow comment="MoonConnect Portal Page" } on-error={ :put "FAIL: walled-garden path" }
 
 :put "Configuring NAT and filters..."
-/ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect NAT"
-/ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management"
-/ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established"
-/ip firewall filter add chain=forward action=accept in-interface=\$lanInterface comment="Allow hotspot traffic"
-${disableSharing ? `/ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1` : ""}
-${deviceTracking ? `/ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie
-/ip hotspot set [find name="${hotspotName}"] addresses-per-mac=1` : ""}
-${bandwidthControl ? `/queue type add name=hotspot-default kind=pcq pcq-rate=0 pcq-limit=50 pcq-classifier=dst-address
-/queue simple add name=hotspot-queue target=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 queue=hotspot-default/hotspot-default comment="MoonConnect BW Control"` : ""}
-${sessionLogging ? `/system logging add topics=hotspot action=memory
-/system logging add topics=hotspot action=echo` : ""}
+:do { /ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect NAT" } on-error={ :put "FAIL: NAT" }
+:do { /ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management" } on-error={ :put "FAIL: filter input" }
+:do { /ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established" } on-error={ :put "FAIL: filter forward 1" }
+:do { /ip firewall filter add chain=forward action=accept in-interface=\$lanInterface comment="Allow hotspot traffic" } on-error={ :put "FAIL: filter forward 2" }
+${disableSharing ? `:do { /ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1 } on-error={ :put "FAIL: shared-users" }` : ""}
+${deviceTracking ? `:do { /ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie } on-error={ :put "FAIL: login-by" }
+:do { /ip hotspot set [find name=${routerosQuote(hotspotName)}] addresses-per-mac=1 } on-error={ :put "FAIL: addresses-per-mac" }` : ""}
+${bandwidthControl ? `:do { /queue type add name=hotspot-default kind=pcq pcq-rate=0 pcq-limit=50 pcq-classifier=dst-address } on-error={ :put "FAIL: queue type" }
+:do { /queue simple add name=hotspot-queue target=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 queue=hotspot-default/hotspot-default comment="MoonConnect BW Control" } on-error={ :put "FAIL: queue simple" }` : ""}
+${sessionLogging ? `:do { /system logging add topics=hotspot action=memory } on-error={ :put "FAIL: logging memory" }
+:do { /system logging add topics=hotspot action=echo } on-error={ :put "FAIL: logging echo" }` : ""}
 
-:do { /ip hotspot user profile remove [find name="default"] } on-error={}
+:do { /ip hotspot user profile remove [find name="default"] } on-error={ :put "SKIP: user profile remove" }
 :put "Creating default user profile..."
-/ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M
+:do { /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M } on-error={ :put "FAIL: user profile add" }
 :put "MoonConnect hotspot setup complete with hosted portal access to ${portalHost}"
 `;
 }
