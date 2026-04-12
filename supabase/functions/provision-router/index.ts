@@ -27,75 +27,32 @@ const svgHeaders = {
 };
 
 function buildBootstrapScript(functionUrl: string) {
-  return `# ============================================
-# MoonConnect - MikroTik Bootstrap Script
-# ============================================
+  return `# MoonConnect Bootstrap Script
+# Run this script to automatically provision your MikroTik router
 
-:global version [/system package update get installed-version]
-:local majorVersion 0
-:local minorVersion 0
-:local dotPos [:find \$version "."]
+:local provisionUrl "${functionUrl}&mode=config"
 
-:if ([:len \$dotPos] > 0) do={
-    :set majorVersion [:tonum [:pick \$version 0 \$dotPos]]
-    :local remaining [:pick \$version (\$dotPos + 1) [:len \$version]]
-    :set dotPos [:find \$remaining "."]
-    :if ([:len \$dotPos] > 0) do={
-        :set minorVersion [:tonum [:pick \$remaining 0 \$dotPos]]
-    }
+:put "Checking internet connectivity..."
+/ping 8.8.8.8 count=3
+
+:if ([/ping 8.8.8.8 count=1] = 0) do={
+  :error "No internet connection. Please check WAN and DNS settings."
 }
 
-:if (\$majorVersion < 6 || (\$majorVersion = 6 && \$minorVersion < 49)) do={
-    :put "RouterOS version 6.49 or higher is required."
-    :error "RouterOS version 6.49 or higher is required."
-}
-
-:if ([/ping 8.8.8.8 count=3] = 0) do={
-    :error "No internet connection. Please check your router WAN and DNS."
-}
-
-:put "========================================="
 :put "Downloading MoonConnect configuration..."
-:put "========================================="
+/tool fetch url=\$provisionUrl mode=https dst-path=moonconnect-config.rsc check-certificate=no
 
-:do {
-    :do { /file remove [find where name="moonconnect-config.rsc"] } on-error={}
-    
-    /tool fetch url="${functionUrl}&mode=config" mode=https dst-path=moonconnect-config.rsc check-certificate=no
-    :delay 3s
+:delay 2
 
-    :if ([:len [/file find where name="moonconnect-config.rsc"]] = 0) do={
-        :put "ERROR: Config file not found"
-        :error "MoonConnect configuration download failed"
-    }
-
-    :local configSize [:len [/file get [find where name="moonconnect-config.rsc"] contents]]
-    :put ("Config file size: " . \$configSize . " bytes")
-    
-    :if (\$configSize < 500) do={
-        :put "ERROR: Config file is too small"
-        :error "MoonConnect configuration file is corrupted"
-    }
-    
-    :put "========================================="
-    :put "Applying MoonConnect configuration..."
-    :put "========================================="
-    
-    /import file-name=moonconnect-config.rsc
-    
-    :do { /file remove [find where name="moonconnect-config.rsc"] } on-error={}
-    
-    :put "========================================="
-    :put "MoonConnect configuration completed successfully!"
-    :put "========================================="
-    
-} on-error={
-    :put "========================================="
-    :put "MoonConnect provisioning failed"
-    :put "========================================="
-    :put \$error
-    /file print
+:if ([:len [/file find where name="moonconnect-config.rsc"]] = 0) do={
+  :error "Failed to download configuration file."
 }
+
+:put "Applying MoonConnect configuration..."
+/import moonconnect-config.rsc
+
+:put "MoonConnect provisioning completed successfully!"
+/file remove moonconnect-config.rsc
 `;
 }
 
@@ -155,147 +112,125 @@ function buildConfigScript(options: {
     "xml/login.html",
   ];
 
-  const assetCommands = assetPaths
-    .map((assetPath) => {
-      const destination = `hotspot/${assetPath}`;
-      const assetUrl = `${functionUrl}&mode=asset&asset=${encodeURIComponent(assetPath)}`;
-      return `:put "Downloading ${assetPath}..."
-:do { /tool fetch url="${assetUrl}" mode=https dst-path="${destination}" check-certificate=no } on-error={ :put "Failed to download ${assetPath}" }`;
-    })
-    .join("\n");
+  // Generate asset download commands
+  const assetCommands: string[] = [];
+  for (const assetPath of assetPaths) {
+    const destination = `hotspot/${assetPath}`;
+    const assetUrl = `${functionUrl}&mode=asset&asset=${encodeURIComponent(assetPath)}`;
+    assetCommands.push(`/tool fetch url="${assetUrl}" mode=https dst-path="${destination}" check-certificate=no`);
+  }
 
-  return `# ============================================
-# MoonConnect - MikroTik Configuration
-# Router: ${routerName}
-# Generated: ${new Date().toISOString()}
-# ============================================
+  return `# MoonConnect Router Configuration
+# Generated for router: ${routerName}
+# Date: ${new Date().toISOString()}
 
-:put "MoonConnect Hotspot Setup Starting"
+# Set variables
+:local lanInterface ""
+:local hotspotName "${hotspotName}"
+:local dnsName "${dnsName}"
+:local networkBase "${networkBase}"
+:local poolStart "${poolStart}"
+:local poolEnd "${poolEnd}"
+:local portalHost "${portalHost}"
+:local supabaseHost "${supabaseHost}"
 
 # Detect LAN interface
-:local lanInterface ""
-:if ([:len [/interface find where name="bridge"]] > 0) do={
-  :set lanInterface "bridge"
-}
-:if ([:len [/interface find where name="bridge1"]] > 0) do={
-  :set lanInterface "bridge1"
-}
-:if ([:len [/interface find where name="ether2"]] > 0) do={
-  :set lanInterface "ether2"
-}
-:if ([:len [/interface find where name="LAN"]] > 0) do={
-  :set lanInterface "LAN"
-}
-:if ([:len [/interface find where default-name="ether2"]] > 0) do={
-  :set lanInterface [/interface get [/interface find where default-name="ether2"] name]
-}
+:if ([:len [/interface find where name="bridge"]] > 0) do={ :set lanInterface "bridge" }
+:if ([:len [/interface find where name="bridge1"]] > 0) do={ :set lanInterface "bridge1" }
+:if ([:len [/interface find where name="ether2"]] > 0) do={ :set lanInterface "ether2" }
+:if ([:len [/interface find where name="LAN"]] > 0) do={ :set lanInterface "LAN" }
 
 :if ([:len \$lanInterface] = 0) do={
-  :put "ERROR: Could not detect LAN interface"
-  :error "Could not detect LAN interface"
+  :error "Could not detect LAN interface. Please ensure interface is named bridge, bridge1, ether2, or LAN"
 }
 
-:put ("Using LAN interface: " . \$lanInterface)
+:put "Using LAN interface: \$lanInterface"
 
 # Create directories
-:put "Creating hotspot directories..."
-:do { /file make-dir hotspot } on-error={}
-:do { /file make-dir hotspot/css } on-error={}
-:do { /file make-dir hotspot/img } on-error={}
-:do { /file make-dir hotspot/xml } on-error={}
+/file make-dir hotspot
+/file make-dir hotspot/css
+/file make-dir hotspot/img
+/file make-dir hotspot/xml
 
 # Download hotspot files
-:put "Downloading hotspot files..."
-${assetCommands}
-:put "All assets downloaded successfully"
+:put "Downloading hotspot assets..."
+${assetCommands.join("\n")}
 
 # Remove existing configurations
-:put "Cleaning up existing configurations..."
-:do { /queue simple remove [find name="hotspot-queue"] } on-error={}
-:do { /queue type remove [find name="hotspot-default"] } on-error={}
-:do { /ip hotspot remove [find name="${hotspotName}"] } on-error={}
-:do { /ip hotspot profile remove [find name="hsprof-moonconnect"] } on-error={}
-:do { /ip dhcp-server remove [find name="hotspot-dhcp"] } on-error={}
-:do { /ip pool remove [find name="hotspot-pool"] } on-error={}
-:do { /ip dns static remove [find name="${dnsName}"] } on-error={}
+/queue simple remove [find name="hotspot-queue"]
+/queue type remove [find name="hotspot-default"]
+/ip hotspot remove [find name="\$hotspotName"]
+/ip hotspot profile remove [find name="hsprof-moonconnect"]
+/ip dhcp-server remove [find name="hotspot-dhcp"]
+/ip pool remove [find name="hotspot-pool"]
+/ip dns static remove [find name="\$dnsName"]
 
 # Create IP pool
-:put "Creating IP pool..."
-/ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
+/ip pool add name=hotspot-pool ranges=\$poolStart-\$poolEnd
 
 # Assign hotspot address
-:put "Assigning hotspot address..."
-/ip address add address=${hotspotAddress} interface=\$lanInterface comment="MoonConnect Interface"
+/ip address add address=\$networkBase/24 interface=\$lanInterface comment="MoonConnect Interface"
 
 # Configure DHCP
-:put "Configuring DHCP server..."
-/ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
+/ip dhcp-server network add address=\$networkBase/24 gateway=\$networkBase dns-server=\$networkBase
 /ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no
 
 # Configure DNS
-:put "Configuring DNS..."
 /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
-/ip dns static add name="${dnsName}" address=${networkBase}
+/ip dns static add name=\$dnsName address=\$networkBase
 
 # Create hotspot profile
-:put "Creating hotspot profile..."
-/ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name="${dnsName}" html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
+/ip hotspot profile add name=hsprof-moonconnect hotspot-address=\$networkBase dns-name=\$dnsName html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
 
 # Create hotspot server
-:put "Creating hotspot server..."
-/ip hotspot add name="${hotspotName}" interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
+/ip hotspot add name=\$hotspotName interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
 
 # Configure walled garden
-:put "Configuring walled garden rules..."
-/ip hotspot walled-garden ip add dst-host="${portalHost}" action=accept comment="MoonConnect Portal"
-/ip hotspot walled-garden ip add dst-host="${supabaseHost}" action=accept comment="MoonConnect Supabase"
-/ip hotspot walled-garden ip add dst-host="checkout.paystack.com" action=accept comment="Paystack Checkout"
-/ip hotspot walled-garden ip add dst-host="api.paystack.co" action=accept comment="Paystack API"
-/ip hotspot walled-garden ip add dst-host="payment.intasend.com" action=accept comment="IntaSend"
-/ip hotspot walled-garden ip add dst-host="pay.pesapal.com" action=accept comment="PesaPal"
-/ip hotspot walled-garden add dst-host="${portalHost}" path=/* action=allow comment="MoonConnect Portal Page"
+/ip hotspot walled-garden ip add dst-host=\$portalHost action=accept comment="MoonConnect Portal"
+/ip hotspot walled-garden ip add dst-host=\$supabaseHost action=accept comment="MoonConnect Supabase"
+/ip hotspot walled-garden ip add dst-host=checkout.paystack.com action=accept comment="Paystack Checkout"
+/ip hotspot walled-garden ip add dst-host=api.paystack.co action=accept comment="Paystack API"
+/ip hotspot walled-garden ip add dst-host=payment.intasend.com action=accept comment="IntaSend"
+/ip hotspot walled-garden ip add dst-host=pay.pesapal.com action=accept comment="PesaPal"
+/ip hotspot walled-garden add dst-host=\$portalHost path=/* action=allow comment="MoonConnect Portal Page"
 
 # Configure NAT and filters
-:put "Configuring NAT and firewall filters..."
-/ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade comment="MoonConnect NAT"
+/ip firewall nat add chain=srcnat src-address=\$networkBase/24 action=masquerade comment="MoonConnect NAT"
 /ip firewall filter add chain=input protocol=tcp dst-port=8728,8729,80,443 action=accept comment="Allow Router Management"
 /ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow established"
 /ip firewall filter add chain=forward action=accept in-interface=\$lanInterface comment="Allow hotspot traffic"
 
-# Optional features
-${disableSharing ? `:put "Disabling hotspot sharing..."
+${disableSharing ? `# Disable hotspot sharing
 /ip hotspot profile set [find name="hsprof-moonconnect"] shared-users=1` : ""}
 
-${deviceTracking ? `:put "Enabling device tracking..."
+${deviceTracking ? `# Enable device tracking
 /ip hotspot profile set [find name="hsprof-moonconnect"] login-by=http-chap,http-pap,cookie,mac-cookie
-/ip hotspot set [find name="${hotspotName}"] addresses-per-mac=1` : ""}
+/ip hotspot set [find name="\$hotspotName"] addresses-per-mac=1` : ""}
 
-${bandwidthControl ? `:put "Setting up bandwidth control..."
+${bandwidthControl ? `# Setup bandwidth control
 /queue type add name=hotspot-default kind=pcq pcq-rate=0 pcq-limit=50 pcq-classifier=dst-address
-/queue simple add name=hotspot-queue target=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 queue=hotspot-default/hotspot-default comment="MoonConnect BW Control"` : ""}
+/queue simple add name=hotspot-queue target=\$networkBase/24 queue=hotspot-default/hotspot-default comment="MoonConnect BW Control"` : ""}
 
-${sessionLogging ? `:put "Enabling session logging..."
+${sessionLogging ? `# Enable session logging
 /system logging add topics=hotspot action=memory
 /system logging add topics=hotspot action=echo` : ""}
 
 # Create default user profile
-:put "Creating default user profile..."
 /ip hotspot user profile remove [find where name="default"]
 /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M
 
 # Enable hotspot server
-:put "Enabling hotspot server..."
-/ip hotspot set [find where name="${hotspotName}"] disabled=no
+/ip hotspot set [find name="\$hotspotName"] disabled=no
 
 :put "========================================="
 :put "MoonConnect hotspot setup complete!"
 :put "Hotspot is running on interface: \$lanInterface"
-:put "Portal URL: http://${dnsName}"
-:put "Customer portal: ${portalHost}"
+:put "Portal URL: http://\$dnsName"
+:put "Customer portal: https://\$portalHost"
 :put "========================================="
 
 # Show hotspot status
-/ip hotspot print where name="${hotspotName}"
+/ip hotspot print where name="\$hotspotName"
 `;
 }
 
@@ -576,10 +511,11 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  // Use different env var names (not starting with SUPABASE_)
+  const supabaseUrl = Deno.env.get("PROJECT_URL") || "https://kcsjdagvvbbxnerkxnqv.supabase.co";
+  const supabaseServiceKey = Deno.env.get("SERVICE_KEY") || "sb_secret_0xR7pJtUlbCZH1OHFghHVA_LDJyzDji";
+  
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const { data: router, error } = await supabase
     .from("routers")
@@ -594,12 +530,10 @@ Deno.serve(async (req) => {
     });
   }
 
-  const rootDomain = Deno.env.get("APP_ROOT_DOMAIN");
-  const publicAppUrl = Deno.env.get("PUBLIC_APP_URL");
-  const baseAppUrl = (publicAppUrl || "https://moonconnect.app").replace(/\/$/, "");
-  const appendOrgParam = (value: string, orgSlug: string) =>
-    `${value}${value.includes("?") ? "&" : "?"}org=${orgSlug}`;
-
+  // Use your Vercel domain (no custom domain)
+  const publicAppUrl = Deno.env.get("APP_URL") || "https://moon-connect-sheh.vercel.app";
+  const baseAppUrl = publicAppUrl.replace(/\/$/, "");
+  
   let portalUrl = `${baseAppUrl}/portal`;
   let businessName = String(router.name || "MoonConnect ISP");
 
@@ -615,16 +549,12 @@ Deno.serve(async (req) => {
     }
 
     if (org?.subdomain) {
-      const slug = String(org.subdomain);
-      if (rootDomain) {
-        portalUrl = `https://${slug}.${rootDomain}/portal`;
-      } else {
-        portalUrl = appendOrgParam(`${baseAppUrl}/portal`, slug);
-      }
+      // Since no custom domain, use query parameter for subdomain
+      portalUrl = `${baseAppUrl}/portal?org=${org.subdomain}`;
     }
   }
 
-  const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/provision-router?token=${token}`;
+  const functionUrl = `${supabaseUrl}/functions/v1/provision-router?token=${token}`;
 
   if (mode === "asset" && requestedAsset) {
     return assetResponse({
@@ -647,7 +577,7 @@ Deno.serve(async (req) => {
       deviceTracking: Boolean(router.device_tracking),
       bandwidthControl: Boolean(router.bandwidth_control),
       sessionLogging: Boolean(router.session_logging),
-      supabaseUrl: Deno.env.get("SUPABASE_URL")!,
+      supabaseUrl: supabaseUrl,
     });
 
     return new Response(script, {
