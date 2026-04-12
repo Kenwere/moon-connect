@@ -42,7 +42,7 @@ function buildBootstrapScript(functionUrl: string) {
   :error "Download failed"
 }
 :put "Applying config..."
-/import moonconnect-config.rsc
+/import moonconnect-config.rsc verbose=yes
 :put "Done!"
 /file remove moonconnect-config.rsc
 `;
@@ -111,7 +111,7 @@ function buildConfigScript(options: {
     assetCommands.push(`/tool fetch url="${assetUrl}" mode=https dst-path="${destination}" check-certificate=no`);
   }
 
-  // ULTRA SIMPLE SCRIPT - minimal RouterOS features
+  // CRITICAL FIX: path=/* WITHOUT quotes
   return `# MoonConnect Config
 :local lanInterface ""
 :if ([:len [/interface find where name="bridge"]] > 0) do={
@@ -136,7 +136,7 @@ ${assetCommands.join("\n")}
 /ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
 /ip address add address=${hotspotAddress} interface=\$lanInterface
 /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
-/ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h
+/ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no
 /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
 /ip dns static add name="${dnsName}" address=${networkBase}
 /ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name="${dnsName}" html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
@@ -147,7 +147,8 @@ ${assetCommands.join("\n")}
 /ip hotspot walled-garden ip add dst-host="api.paystack.co" action=accept
 /ip hotspot walled-garden ip add dst-host="payment.intasend.com" action=accept
 /ip hotspot walled-garden ip add dst-host="pay.pesapal.com" action=accept
-/ip hotspot walled-garden add dst-host="${portalHost}" path="/*" action=allow
+# CRITICAL: path=/* WITHOUT quotes - this is the fix
+/ip hotspot walled-garden add dst-host="${portalHost}" path=/* action=allow
 /ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade
 /ip firewall filter add chain=input protocol=tcp dst-port=80,443,8728,8729 action=accept
 /ip firewall filter add chain=forward action=accept connection-state=established,related
