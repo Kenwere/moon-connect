@@ -42,7 +42,7 @@ function buildBootstrapScript(functionUrl: string) {
   :error "Download failed"
 }
 :put "Applying config..."
-/import moonconnect-config.rsc verbose=yes
+/import moonconnect-config.rsc
 :put "Done!"
 /file remove moonconnect-config.rsc
 `;
@@ -111,59 +111,112 @@ function buildConfigScript(options: {
     assetCommands.push(`/tool fetch url="${assetUrl}" mode=https dst-path="${destination}" check-certificate=no`);
   }
 
-  // CRITICAL FIX: path=/* WITHOUT quotes
+  // SAFE ROUTEROS SYNTAX - no nested expressions, each step separate
   return `# MoonConnect Config
 :local lanInterface ""
-:if ([:len [/interface find where name="bridge"]] > 0) do={
+
+# Check for bridge interface
+:local bridgeId [/interface find where name="bridge"]
+:if ([:len $bridgeId] > 0) do={
   :set lanInterface "bridge"
 }
-:if ([:len [/interface find where name="ether2"]] > 0) do={
-  :set lanInterface "ether2"
+
+# Check for ether2 interface
+:if ($lanInterface = "") do={
+  :local etherId [/interface find where name="ether2"]
+  :if ([:len $etherId] > 0) do={
+    :set lanInterface "ether2"
+  }
 }
-:if ([:len $lanInterface] = 0) do={
-  :error "No LAN interface"
+
+# Check for LAN interface
+:if ($lanInterface = "") do={
+  :local lanId [/interface find where name="LAN"]
+  :if ([:len $lanId] > 0) do={
+    :set lanInterface "LAN"
+  }
 }
+
+# Error if no interface found
+:if ($lanInterface = "") do={
+  :error "No LAN interface found"
+}
+
+:put ("Using interface: " . $lanInterface)
+
+# Create directories
 /file make-dir hotspot
 /file make-dir hotspot/css
 /file make-dir hotspot/img
 /file make-dir hotspot/xml
+
+# Download hotspot files
 ${assetCommands.join("\n")}
+
+# Remove old configurations
 /ip hotspot remove [find where name="${hotspotName}"]
 /ip hotspot profile remove [find where name="hsprof-moonconnect"]
 /ip dhcp-server remove [find where name="hotspot-dhcp"]
 /ip pool remove [find where name="hotspot-pool"]
 /ip dns static remove [find where name="${dnsName}"]
+
+# Create IP pool
 /ip pool add name=hotspot-pool ranges=${poolStart}-${poolEnd}
+
+# Add IP address
 /ip address add address=${hotspotAddress} interface=\$lanInterface
+
+# Configure DHCP network
 /ip dhcp-server network add address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 gateway=${networkBase} dns-server=${networkBase}
+
+# Add DHCP server
 /ip dhcp-server add name=hotspot-dhcp interface=\$lanInterface address-pool=hotspot-pool lease-time=1h disabled=no
+
+# Configure DNS
 /ip dns set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4
 /ip dns static add name="${dnsName}" address=${networkBase}
+
+# Create hotspot profile
 /ip hotspot profile add name=hsprof-moonconnect hotspot-address=${networkBase} dns-name="${dnsName}" html-directory=hotspot login-by=http-chap,http-pap,cookie,mac-cookie http-cookie-lifetime=1d
-/ip hotspot add name="${hotspotName}" interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect
+
+# Create hotspot server
+/ip hotspot add name="${hotspotName}" interface=\$lanInterface address-pool=hotspot-pool profile=hsprof-moonconnect disabled=no
+
+# Add walled garden rules
 /ip hotspot walled-garden ip add dst-host="${portalHost}" action=accept
 /ip hotspot walled-garden ip add dst-host="${supabaseHost}" action=accept
 /ip hotspot walled-garden ip add dst-host="checkout.paystack.com" action=accept
 /ip hotspot walled-garden ip add dst-host="api.paystack.co" action=accept
 /ip hotspot walled-garden ip add dst-host="payment.intasend.com" action=accept
 /ip hotspot walled-garden ip add dst-host="pay.pesapal.com" action=accept
-# CRITICAL: path=/* WITHOUT quotes - this is the fix
 /ip hotspot walled-garden add dst-host="${portalHost}" path=/* action=allow
+
+# Add NAT rule
 /ip firewall nat add chain=srcnat src-address=${networkParts[0]}.${networkParts[1]}.${networkParts[2]}.0/24 action=masquerade
+
+# Add firewall rules
 /ip firewall filter add chain=input protocol=tcp dst-port=80,443,8728,8729 action=accept
 /ip firewall filter add chain=forward action=accept connection-state=established,related
 /ip firewall filter add chain=forward action=accept in-interface=\$lanInterface
+
+# Optional features
 ${disableSharing ? '/ip hotspot profile set [find where name="hsprof-moonconnect"] shared-users=1' : ''}
 ${deviceTracking ? '/ip hotspot set [find where name="' + hotspotName + '"] addresses-per-mac=1' : ''}
 ${bandwidthControl ? '/queue simple add name=hotspot-queue target=' + networkParts[0] + '.' + networkParts[1] + '.' + networkParts[2] + '.0/24 max-limit=10M/10M' : ''}
+${sessionLogging ? '/system logging add topics=hotspot action=memory' : ''}
+
+# Create default user profile
 /ip hotspot user profile remove [find where name="default"]
 /ip hotspot user profile add name=default shared-users=1 rate-limit=2M/2M
+
+# Enable hotspot
 /ip hotspot set [find where name="${hotspotName}"] disabled=no
+
 :put "Setup complete"
 `;
 }
 
-// Keep all helper functions from previous version
+// Keep all helper functions - they remain the same
 function redirectHtml(options: { title: string; message: string; targetUrl: string }) {
   const { title, message, targetUrl } = options;
   return `<!doctype html>
