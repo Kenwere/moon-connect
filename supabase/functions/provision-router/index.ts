@@ -511,10 +511,36 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Use different env var names (not starting with SUPABASE_)
-  const supabaseUrl = Deno.env.get("PROJECT_URL") 
-  const supabaseServiceKey = Deno.env.get("SERVICE_KEY") 
+  // Get environment variables - NO HARDCODED SECRETS!
+  const supabaseUrl = Deno.env.get("PROJECT_URL");
+  const supabaseServiceKey = Deno.env.get("SERVICE_KEY");
+  const publicAppUrl = Deno.env.get("APP_URL");
+
+  // Validate required environment variables
+  if (!supabaseUrl) {
+    console.error("Missing PROJECT_URL environment variable");
+    return new Response("Server configuration error: Missing PROJECT_URL", { 
+      status: 500, 
+      headers: textHeaders 
+    });
+  }
   
+  if (!supabaseServiceKey) {
+    console.error("Missing SERVICE_KEY environment variable");
+    return new Response("Server configuration error: Missing SERVICE_KEY", { 
+      status: 500, 
+      headers: textHeaders 
+    });
+  }
+  
+  if (!publicAppUrl) {
+    console.error("Missing APP_URL environment variable");
+    return new Response("Server configuration error: Missing APP_URL", { 
+      status: 500, 
+      headers: textHeaders 
+    });
+  }
+
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const { data: router, error } = await supabase
@@ -530,8 +556,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Use your Vercel domain (no custom domain)
-  const publicAppUrl = Deno.env.get("APP_URL") || "https://moon-connect-sheh.vercel.app";
   const baseAppUrl = publicAppUrl.replace(/\/$/, "");
   
   let portalUrl = `${baseAppUrl}/portal`;
